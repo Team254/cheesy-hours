@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Cheesy FRC Hours</title>
+  <link rel="icon" href="http://team254.com/wp-content/themes/cheesypoof2013/icons/favicon.ico">
+  <link href="/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/css/css.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+  <div class="navbar">
+    <div class="navbar-inner">
+      <a class="brand" href="/">Cheesy FRC Hours</a>
+      <ul class="nav">
+        <li><a href="/leader_board"><i class="icon-th-list icon-black"></i> Leader Board</a></li>
+      </ul>
+      <div class="pull-right">
+        <ul class="nav pull-right">
+          <% if @user_info %>
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown"> <i class="icon-user"></i>
+                <%= @user_info["name"] %> <b class="caret"></b></a>
+              <ul class="dropdown-menu">
+                <li>
+                  <a href="/logout"><i class="icon-off"></i> Logout</a>
+                </li>
+              </ul>
+            </li>
+          <% else %>
+            <li><a href="/login"><i class="icon-bar-chart"></i> Login</a></li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  </div>

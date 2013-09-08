@@ -43,8 +43,20 @@ module CheesyFrcHours
       end
     end
 
+    get "/logout" do
+      session[:user_info] = nil
+      redirect "/"
+    end
+
     get "/" do
-      "This page intentionally left blank. #{@user_info}"
+      erb :index
+    end
+
+    get "/reindex_students" do
+      halt(400, "Need to be an administrator.") unless @user_info["administrator"] == "1"
+
+      # TODO(patrick): Implement once there's an appropriate API on the Wordpress site.
+      "Implement me!"
     end
   end
 end
