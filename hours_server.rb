@@ -3,6 +3,7 @@
 #
 # The main class of the hours web server.
 
+require "active_support/time"
 require "cgi"
 require "pathological"
 require "sinatra/base"
@@ -17,10 +18,10 @@ module CheesyFrcHours
 
     set :sessions => true
 
-    # Enforce authentication for all routes except login and the main page.
+    # Enforce authentication for all non-public routes.
     before do
       @user_info = JSON.parse(session[:user_info]) rescue nil
-      authenticate! unless ["/", "/login"].include?(request.path)
+      authenticate! unless ["/", "/login", "/signin"].include?(request.path)
     end
 
     def authenticate!
@@ -49,7 +50,21 @@ module CheesyFrcHours
     end
 
     get "/" do
+      @signed_in_sessions = LabSession.where(:time_out => nil).order(:id)
       erb :index
+    end
+
+    post "/signin" do
+      @student = Student[params[:student_id]] || Student["21" + params[:student_id]]
+      halt(400, "Invalid student.") if @student.nil?
+
+      # Check for existing open lab sessions.
+      unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
+        halt(400, "An open lab session already exists for student #{@student.id}.")
+      end
+      @student.add_lab_session(:time_in => Time.now)
+
+      redirect "/"
     end
 
     get "/reindex_students" do
