@@ -71,6 +71,12 @@ module CheesyFrcHours
       erb :leader_board
     end
 
+    get "/students/:id" do
+      @student = Student[params[:id]]
+      halt(400, "Invalid student.") if @student.nil?
+      erb :student
+    end
+
     get "/reindex_students" do
       halt(400, "Need to be an administrator.") unless @user_info["administrator"] == "1"
 
