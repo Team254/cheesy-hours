@@ -7,12 +7,23 @@
         <th>Time In</th>
         <th>Time Out</th>
         <th>Project Hours</th>
+        <% if @user_info["mentor"] == 1 %>
+          <th>Action</th>
+        <% end %>
       </tr>
       <% @student.lab_sessions.sort_by(&:id).each do |session| %>
         <tr>
           <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
           <td><%= session.time_out.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
           <td><%= ((session.time_out - session.time_in) / 3600).round(1) %></td>
+          <% if @user_info["mentor"] == 1 %>
+            <td>
+              <span style="white-space: nowrap;">
+                <a href="/lab_sessions/<%= session.id %>/edit" class="btn btn-primary btn-small">Edit</a>
+                <a href="/lab_sessions/<%= session.id %>/delete" class="btn btn-danger btn-small">Delete</a>
+              </span>
+            </td>
+          <% end %>
         </tr>
       <% end %>
     </table>

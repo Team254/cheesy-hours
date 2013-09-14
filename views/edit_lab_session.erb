@@ -1,0 +1,17 @@
+<%= erb :header %>
+
+<div class="container">
+  <h2>Edit lab session</h2>
+  <form action="" method="POST">
+    <input type="hidden" name="referrer" value="<%= @referrer %>" />
+    <label>Time in</label>
+    <input type="text" name="time_in"
+        value="<%= @lab_session.time_in.in_time_zone("America/Los_Angeles") %>"/>
+    <label>Time out</label>
+    <input type="text" name="time_out"
+        value="<%= @lab_session.time_out.in_time_zone("America/Los_Angeles") %>"/>
+    <label><input type="submit" class="btn btn-success btn-medium" value="Save"></label>
+  </form>
+</div>
+
+<%= erb :footer %>

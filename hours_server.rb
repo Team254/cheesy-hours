@@ -77,6 +77,38 @@ module CheesyFrcHours
       erb :student
     end
 
+    get "/lab_sessions/:id/edit" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      @lab_session = LabSession[params[:id]]
+      halt(400, "Invalid lab session.") if @lab_session.nil?
+      @referrer = request.referrer
+      erb :edit_lab_session
+    end
+
+    post "/lab_sessions/:id/edit" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      @lab_session = LabSession[params[:id]]
+      halt(400, "Invalid lab session.") if @lab_session.nil?
+      @lab_session.update(:time_in => params[:time_in], :time_out => params[:time_out])
+      redirect params[:referrer] || "/leader_board"
+    end
+
+    get "/lab_sessions/:id/delete" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      @lab_session = LabSession[params[:id]]
+      halt(400, "Invalid lab session.") if @lab_session.nil?
+      @referrer = request.referrer
+      erb :delete_lab_session
+    end
+
+    post "/lab_sessions/:id/delete" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      @lab_session = LabSession[params[:id]]
+      halt(400, "Invalid lab session.") if @lab_session.nil?
+      @lab_session.delete
+      redirect params[:referrer] || "/leader_board"
+    end
+
     get "/reindex_students" do
       halt(400, "Need to be an administrator.") unless @user_info["administrator"] == "1"
 
