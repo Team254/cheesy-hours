@@ -67,6 +67,10 @@ module CheesyFrcHours
       redirect "/"
     end
 
+    get "/leader_board" do
+      erb :leader_board
+    end
+
     get "/reindex_students" do
       halt(400, "Need to be an administrator.") unless @user_info["administrator"] == "1"
 

@@ -47,7 +47,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  activesupport (~> 4.0.0)
+  activesupport
   daemons
   fezzik
   httparty

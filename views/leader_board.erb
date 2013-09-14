@@ -1,0 +1,20 @@
+<%= erb :header %>
+
+<div class="container">
+    <h2>Leader Board</h2>
+    <table class="table table-striped table-bordered table-condensed">
+      <tr>
+        <th>Name</th>
+        <th>Project Hours</th>
+      </tr>
+      <% Student.sort_by(&:project_hours).reverse.each do |student| %>
+        <tr>
+          <td><%= student.first_name %> <%= student.last_name %></td>
+          <td><%= student.project_hours.round(1) %></td>
+        </tr>
+      <% end %>
+    </table>
+  </div>
+</div>
+
+<%= erb :footer %>
