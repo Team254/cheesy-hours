@@ -7,4 +7,5 @@ require "sequel"
 
 require "db"
 require "models/lab_session"
+require "models/mentor"
 require "models/student"

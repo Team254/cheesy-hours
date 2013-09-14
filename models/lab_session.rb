@@ -5,4 +5,5 @@
 
 class LabSession < Sequel::Model
   many_to_one :student
+  many_to_one :mentor
 end
