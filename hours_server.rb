@@ -109,6 +109,41 @@ module CheesyFrcHours
       redirect params[:referrer] || "/leader_board"
     end
 
+    get "/new_mentor" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      erb :new_mentor
+    end
+
+    get "/mentors" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      erb :mentors
+    end
+
+    post "/mentors" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(400, "Missing first name.") if params[:first_name].nil? || params[:first_name].empty?
+      halt(400, "Missing last name.") if params[:last_name].nil? || params[:last_name].empty?
+      halt(400, "Missing phone number.") if params[:phone_number].nil? || params[:phone_number].empty?
+      Mentor.create(:first_name => params[:first_name], :last_name => params[:last_name],
+                    :phone_number => params[:phone_number])
+      redirect "/mentors"
+    end
+
+    get "/mentors/:id/delete" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      @mentor = Mentor[params[:id]]
+      halt(400, "Invalid mentor.") if @mentor.nil?
+      erb :delete_mentor
+    end
+
+    post "/mentors/:id/delete" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      @mentor = Mentor[params[:id]]
+      halt(400, "Invalid mentor.") if @mentor.nil?
+      @mentor.delete
+      redirect "/mentors"
+    end
+
     get "/reindex_students" do
       halt(400, "Need to be an administrator.") unless @user_info["administrator"] == "1"
 

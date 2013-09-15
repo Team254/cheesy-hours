@@ -1,0 +1,29 @@
+<%= erb :header %>
+
+<div class="container">
+    <div class="pull-right" style="margin-top: 15px;">
+      <a href="/new_mentor" class="btn btn-success btn-small">Add Mentor</a>
+    </div>
+    <h2>Mentors</h2>
+    <table class="table table-striped table-bordered table-condensed">
+      <tr>
+        <th>Name</th>
+        <th>Phone Number</th>
+        <th>Action</th>
+      </tr>
+      <% Mentor.each do |mentor| %>
+        <tr>
+          <td><%= mentor.first_name %> <%= mentor.last_name %></td>
+          <td><%= mentor.phone_number %></td>
+          <td>
+            <span style="white-space: nowrap;">
+              <a href="/mentors/<%= mentor.id %>/delete" class="btn btn-danger btn-small">Delete</a>
+            </span>
+          </td>
+        </tr>
+      <% end %>
+    </table>
+  </div>
+</div>
+
+<%= erb :footer %>
