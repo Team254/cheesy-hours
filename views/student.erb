@@ -15,7 +15,7 @@
         <tr>
           <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
           <td><%= session.time_out.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
-          <td><%= ((session.time_out - session.time_in) / 3600).round(1) %></td>
+          <td><%= session.duration_hours.round(1) %></td>
           <% if @user_info["mentor"] == 1 %>
             <td>
               <span style="white-space: nowrap;">

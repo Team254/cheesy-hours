@@ -9,7 +9,7 @@ class Student < Sequel::Model
 
   def project_hours
     lab_sessions.reject { |session| session.time_out.nil? }.inject(0) do |sum, session|
-      sum + (session.time_out - session.time_in) / 3600
+      sum + session.duration_hours
     end
   end
 end

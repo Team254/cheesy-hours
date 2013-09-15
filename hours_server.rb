@@ -21,7 +21,7 @@ module CheesyFrcHours
     # Enforce authentication for all non-public routes.
     before do
       @user_info = JSON.parse(session[:user_info]) rescue nil
-      authenticate! unless ["/", "/login", "/signin"].include?(request.path)
+      authenticate! unless ["/", "/login", "/signin", "/sms"].include?(request.path)
     end
 
     def authenticate!
@@ -125,7 +125,7 @@ module CheesyFrcHours
       halt(400, "Missing last name.") if params[:last_name].nil? || params[:last_name].empty?
       halt(400, "Missing phone number.") if params[:phone_number].nil? || params[:phone_number].empty?
       Mentor.create(:first_name => params[:first_name], :last_name => params[:last_name],
-                    :phone_number => params[:phone_number])
+                    :phone_number => params[:phone_number].gsub(/[^\d]/, "")[-10..-1])
       redirect "/mentors"
     end
 
@@ -144,11 +144,42 @@ module CheesyFrcHours
       redirect "/mentors"
     end
 
+    # Receives all SMS messages via Twilio.
+    post "/sms" do
+      content_type "application/xml"
+
+      # Retrieve the mentor record using the sender phone number.
+      phone_number = params[:From].gsub(/[^\d]/, "")[-10..-1]
+      mentor = Mentor.where(:phone_number => phone_number).first
+      halt(200, sms_response("Error: Don't recognize sender's phone number.")) if mentor.nil?
+
+      # Retrieve the student record using the body of the message.
+      student = Student[params[:Body]] || Student["21" + params[:Body]]
+      halt(200, sms_response("Error: No matching student.")) if student.nil?
+
+      # Find the open lab session and sign it out.
+      lab_session = student.lab_sessions.select { |session| session.time_out.nil? }.first
+      if lab_session.nil?
+        halt(200, sms_response("Error: #{student.first_name} #{student.last_name} is not signed in."))
+      end
+      lab_session.update(:time_out => Time.now, :mentor => mentor)
+      halt(200, sms_response("#{student.first_name} #{student.last_name} signed out after " +
+                                 "#{lab_session.duration_hours.round(1)} hours."))
+    end
+
     get "/reindex_students" do
       halt(400, "Need to be an administrator.") unless @user_info["administrator"] == "1"
 
       # TODO(patrick): Implement once there's an appropriate API on the Wordpress site.
       "Implement me!"
+    end
+
+    def sms_response(message)
+      <<-END
+        <Response>
+          <Sms>#{message}</Sms>
+        </Response>
+      END
     end
   end
 end
