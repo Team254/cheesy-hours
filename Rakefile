@@ -30,7 +30,7 @@ set :user, "ubuntu"
 Fezzik.destination :prod do
   # Fill in parameters for deployment host, database and e-mail account here.
   set :domain, "#{user}@frc-hours.team254.com"
-  env :port, 9005
+  env :port, 9006
   env :db_host, "localhost"
   env :db_user, "team254"
   env :db_password, "complementingnotmixing"
