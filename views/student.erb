@@ -7,6 +7,7 @@
         <th>Time In</th>
         <th>Time Out</th>
         <th>Project Hours</th>
+        <th>Signed Out By</th>
         <% if @user_info["mentor"] == 1 %>
           <th>Action</th>
         <% end %>
@@ -18,6 +19,7 @@
             <%= session.time_out.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %>
           </td>
           <td><%= session.duration_hours.round(1) %></td>
+          <td><%= session.mentor ? "#{session.mentor.first_name} #{session.mentor.last_name}" : "" %></td>
           <% if @user_info["mentor"] == 1 %>
             <td>
               <span style="white-space: nowrap;">
