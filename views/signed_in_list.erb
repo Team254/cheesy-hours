@@ -1,0 +1,21 @@
+<h4>Currently signed in</h4>
+<table class="table table-striped table-bordered table-condensed">
+  <tr>
+    <% if @user_info %>
+      <th>Name</th>
+    <% else %>
+      <th>Student ID</th>
+    <% end %>
+    <th>Time In</th>
+  </tr>
+  <% @signed_in_sessions.each do |session| %>
+    <tr>
+      <% if @user_info %>
+        <td><%= session.student.first_name %> <%= session.student.last_name %></td>
+      <% else %>
+        <td><%= session.student_id %></td>
+      <% end %>
+      <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
+    </tr>
+  <% end %>
+</table>
