@@ -170,8 +170,18 @@ module CheesyFrcHours
     get "/reindex_students" do
       halt(400, "Need to be an administrator.") unless @user_info["administrator"] == "1"
 
-      # TODO(patrick): Implement once there's an appropriate API on the Wordpress site.
-      "Implement me!"
+      students = get_wordpress_student_list
+      Student.truncate
+      students.each do |student|
+        next if student["student_id"] == "254254"  # Ignore users having the special invite code.
+        begin
+          Student.create(:id => student["student_id"], :first_name => student["first_name"],
+                         :last_name => student["last_name"])
+        rescue Sequel::UniqueConstraintViolation
+          # Ignore duplicate student records.
+        end
+      end
+      "Successfully imported #{Student.all.size} students."
     end
 
     def sms_response(message)
