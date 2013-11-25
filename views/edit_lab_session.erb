@@ -9,7 +9,7 @@
         value="<%= @lab_session.time_in.in_time_zone("America/Los_Angeles") %>"/>
     <label>Time out</label>
     <input type="text" name="time_out"
-        value="<%= @lab_session.time_out.in_time_zone("America/Los_Angeles") %>"/>
+        value="<%= @lab_session.time_out.in_time_zone("America/Los_Angeles") rescue "" %>"/>
     <label><input type="submit" class="btn btn-success btn-medium" value="Save"></label>
   </form>
 </div>
