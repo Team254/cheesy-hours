@@ -77,6 +77,23 @@ module CheesyFrcHours
       erb :student
     end
 
+    get "/students/:id/new_lab_session" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      @student = Student[params[:id]]
+      halt(400, "Invalid student.") if @student.nil?
+      erb :edit_lab_session
+    end
+
+    post "/students/:id/new_lab_session" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      student = Student[params[:id]]
+      halt(400, "Invalid student.") if student.nil?
+      student.add_lab_session(:time_in => params[:time_in], :time_out => params[:time_out],
+                              :notes => params[:notes],
+                              :mentor_name => params[:time_out].empty? ? nil : @user_info["name"])
+      redirect params[:referrer] || "/leader_board"
+    end
+
     get "/lab_sessions/:id/edit" do
       halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
       @lab_session = LabSession[params[:id]]
@@ -89,7 +106,15 @@ module CheesyFrcHours
       halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
-      @lab_session.update(:time_in => params[:time_in], :time_out => params[:time_out])
+      if !params[:time_out].empty? && @lab_session.time_out.nil?
+        mentor_name = @user_info["name"]
+      elsif params[:time_out].empty? && @lab_session.time_out
+        mentor_name = nil
+      else
+        mentor_name = @lab_session.mentor_name
+      end
+      @lab_session.update(:time_in => params[:time_in], :time_out => params[:time_out],
+                          :notes => params[:notes], :mentor_name => mentor_name)
       redirect params[:referrer] || "/leader_board"
     end
 

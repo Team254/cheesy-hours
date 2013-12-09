@@ -1,6 +1,13 @@
 <%= erb :header %>
 
 <div class="container">
+    <% if @user_info["mentor"] == 1 %>
+      <div class="pull-right" style="margin-top: 20px;">
+        <a href="/students/<%= @student.id %>/new_lab_session" class="btn btn-success btn-small">
+          <i class="icon-white icon-file"></i> New Lab Session
+        </a>
+      </div>
+    <% end %>
     <h2><%= @student.first_name %> <%= @student.last_name %></h2>
     <table class="table table-striped table-bordered table-condensed">
       <tr>
@@ -8,6 +15,7 @@
         <th>Time Out</th>
         <th>Project Hours</th>
         <th>Signed Out By</th>
+        <th>Notes</th>
         <% if @user_info["mentor"] == 1 %>
           <th>Action</th>
         <% end %>
@@ -19,7 +27,9 @@
             <%= session.time_out.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %>
           </td>
           <td><%= session.duration_hours.round(1) %></td>
-          <td><%= session.mentor ? "#{session.mentor.first_name} #{session.mentor.last_name}" : "" %></td>
+          <td><%= session.mentor ? "#{session.mentor.first_name} #{session.mentor.last_name}" :
+              session.mentor_name %></td>
+          <td><%= session.notes %></td>
           <% if @user_info["mentor"] == 1 %>
             <td>
               <span style="white-space: nowrap;">
