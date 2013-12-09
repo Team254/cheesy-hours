@@ -134,6 +134,14 @@ module CheesyFrcHours
       redirect params[:referrer] || "/leader_board"
     end
 
+    get "/lab_sessions/:id/sign_out" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      lab_session = LabSession[params[:id]]
+      halt(400, "Invalid lab session.") if lab_session.nil?
+      lab_session.update(:time_out => Time.now, :mentor_name => @user_info["name"])
+      redirect "/"
+    end
+
     get "/lab_sessions/open" do
       @signed_in_sessions = LabSession.where(:time_out => nil).order(:id)
       erb :signed_in_list

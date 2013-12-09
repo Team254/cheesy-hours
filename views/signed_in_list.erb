@@ -7,6 +7,9 @@
       <th>Student ID</th>
     <% end %>
     <th>Time In</th>
+    <% if @user_info && @user_info["mentor"] == 1 %>
+      <th>Action</th>
+    <% end %>
   </tr>
   <% @signed_in_sessions.each do |session| %>
     <tr>
@@ -16,6 +19,13 @@
         <td><%= session.student_id %></td>
       <% end %>
       <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
+      <% if @user_info && @user_info["mentor"] == 1 %>
+        <td>
+          <span style="white-space: nowrap;">
+            <a href="/lab_sessions/<%= session.id %>/sign_out" class="btn btn-primary btn-small">Sign Out</a>
+          </span>
+        </td>
+      <% end %>
     </tr>
   <% end %>
 </table>
