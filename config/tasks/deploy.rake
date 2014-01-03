@@ -39,13 +39,13 @@ namespace :fezzik do
   desc "runs the application"
   remote_task :start do
     puts "starting from #{Fezzik::Util.capture_output { run "readlink #{current_path}" }}"
-    run "cd #{current_path} && ruby hours_server_control.rb start"
+    run "cd #{current_path} && ruby frc_hours_server_control.rb start"
   end
 
   desc "kills the application"
   remote_task :stop do
     puts "stopping app"
-    run "(kill -9 `ps aux | grep 'hours_server' | grep -v grep | awk '{print $2}'` || true)"
+    run "(kill -9 `ps aux | grep 'frc_hours_server' | grep -v grep | awk '{print $2}'` || true)"
   end
 
   desc "restarts the application"

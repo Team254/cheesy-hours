@@ -8,8 +8,8 @@ require "daemons"
 require "pathological"
 require "thin"
 
-Daemons.run_proc("hours_server", :monitor => true) do
-  require "hours_server"
+Daemons.run_proc("frc_hours_server", :monitor => true) do
+  require "frc_hours_server"
 
   Thin::Server.start("0.0.0.0", PORT, CheesyFrcHours::Server)
 end
