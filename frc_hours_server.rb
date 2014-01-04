@@ -189,20 +189,28 @@ module CheesyFrcHours
       # Retrieve the mentor record using the sender phone number.
       phone_number = params[:From].gsub(/[^\d]/, "")[-10..-1]
       mentor = Mentor.where(:phone_number => phone_number).first
-      halt(200, sms_response("Error: Don't recognize sender's phone number.")) if mentor.nil?
+      halt(200, sms_response(["Error: Don't recognize sender's phone number."])) if mentor.nil?
 
-      # Retrieve the student record using the body of the message.
-      student = Student[params[:Body]] || Student["21" + params[:Body]]
-      halt(200, sms_response("Error: No matching student.")) if student.nil?
-
-      # Find the open lab session and sign it out.
-      lab_session = student.lab_sessions.select { |session| session.time_out.nil? }.first
-      if lab_session.nil?
-        halt(200, sms_response("Error: #{student.first_name} #{student.last_name} is not signed in."))
+      # Check for multiple IDs in the message.
+      ids = params[:Body].split(" ")
+      messages = ids.map do |id|
+        # Retrieve the student record using the body of the message.
+        student = Student[id] || Student["21" + id]
+        if student.nil?
+          "Error: No matching student."
+        else
+          # Find the open lab session and sign it out.
+          lab_session = student.lab_sessions.select { |session| session.time_out.nil? }.first
+          if lab_session.nil?
+            "Error: #{student.first_name} #{student.last_name} is not signed in."
+          else
+            lab_session.update(:time_out => Time.now, :mentor => mentor)
+            "#{student.first_name} #{student.last_name} signed out after " +
+                "#{lab_session.duration_hours.round(1)} hours."
+          end
+        end
       end
-      lab_session.update(:time_out => Time.now, :mentor => mentor)
-      halt(200, sms_response("#{student.first_name} #{student.last_name} signed out after " +
-                                 "#{lab_session.duration_hours.round(1)} hours."))
+      halt(200, sms_response(messages))
     end
 
     get "/reindex_students" do
@@ -222,10 +230,10 @@ module CheesyFrcHours
       "Successfully imported #{Student.all.size} students."
     end
 
-    def sms_response(message)
+    def sms_response(messages)
       <<-END
         <Response>
-          <Sms>#{message}</Sms>
+          <Sms>#{messages.join("</Sms><Sms>")}</Sms>
         </Response>
       END
     end
