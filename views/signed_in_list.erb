@@ -32,3 +32,6 @@
     </tr>
   <% end %>
 </table>
+<% if @signed_in_sessions.count > 1 %>
+  <h4><%= @signed_in_sessions.count %> students</h4>
+<% end %>
