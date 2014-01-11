@@ -11,7 +11,7 @@
       <th>Action</th>
     <% end %>
   </tr>
-  <% @signed_in_sessions.each do |session| %>
+  <% @signed_in_sessions.sort_by { |session| session.student.last_name }.each do |session| %>
     <tr>
       <% if @user_info %>
         <td><%= session.student.first_name %> <%= session.student.last_name %></td>

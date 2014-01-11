@@ -50,7 +50,7 @@ module CheesyFrcHours
     end
 
     get "/" do
-      @signed_in_sessions = LabSession.where(:time_out => nil).order(:id)
+      @signed_in_sessions = LabSession.where(:time_out => nil)
       erb :index
     end
 
