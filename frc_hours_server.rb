@@ -230,6 +230,18 @@ module CheesyFrcHours
       "Successfully imported #{Student.all.size} students."
     end
 
+    get "/csv_report" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      content_type "text/csv"
+
+      rows = []
+      rows << ["Last Name", "First Name", "Student ID", "Project Hours"].join(",")
+      Student.order_by(:last_name).each do |student|
+        rows << [student.last_name, student.first_name, student.id, student.project_hours].join(",")
+      end
+      rows.join("\n")
+    end
+
     def sms_response(messages)
       <<-END
         <Response>
