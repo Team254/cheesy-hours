@@ -18,6 +18,8 @@ module CheesyFrcHours
 
     set :sessions => true
 
+    SIGNIN_IP_WHITELIST = ["198.123.", "128.102."]
+
     # Enforce authentication for all non-public routes.
     before do
       @user_info = JSON.parse(session[:user_info]) rescue nil
@@ -57,6 +59,11 @@ module CheesyFrcHours
     post "/signin" do
       @student = Student[params[:student_id]] || Student["21" + params[:student_id]]
       halt(400, "Invalid student.") if @student.nil?
+
+      # Restrict sign-ins to the NASA Lab's IP address ranges.
+      unless SIGNIN_IP_WHITELIST.any? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
+        halt(400, "Invalid IP address. Must sign in from the NASA Lab.")
+      end
 
       # Check for existing open lab sessions.
       unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
