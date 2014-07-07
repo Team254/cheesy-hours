@@ -67,12 +67,12 @@ namespace :fezzik do
   desc "installs required gems"
   remote_task :bundle_install do
     puts "bundle installing"
-    run "cd #{current_path} && bundle install --local --without test"
+    run "cd #{current_path} && bundle install --local --path vendor/bundle --without test"
   end
 
   desc "runs database migrations"
   remote_task :migrate_db do
     puts "running database migrations"
-    run "cd #{current_path} && rake db:migrate"
+    run "cd #{current_path} && bundle exec rake db:migrate"
   end
 end
