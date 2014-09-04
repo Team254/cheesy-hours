@@ -16,7 +16,7 @@ module CheesyFrcHours
   class Server < Sinatra::Base
     include WordpressAuthentication
 
-    set :sessions => true
+    use Rack::Session::Cookie, :key => "rack.session"
 
     SIGNIN_IP_WHITELIST = ["198.123.", "128.102."]
 
