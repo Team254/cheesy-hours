@@ -198,7 +198,16 @@ module CheesyFrcHours
       mentor = Mentor.where(:phone_number => phone_number).first
       halt(200, sms_response(["Error: Don't recognize sender's phone number."])) if mentor.nil?
 
-      # Check for multiple IDs in the message.
+      # First check for special control messages.
+      if params[:Body].downcase == "gtfo"
+        # Sign everyone out all at once.
+        LabSession.where(:time_out => nil).each do |lab_session|
+          lab_session.update(:time_out => Time.now, :mentor => mentor)
+        end
+        halt(200, sms_response(["All students signed out."]))
+      end
+
+      # Next, check for multiple IDs in the message.
       ids = params[:Body].split(" ")
       messages = ids.map do |id|
         # Retrieve the student record using the body of the message.
