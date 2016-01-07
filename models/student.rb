@@ -12,4 +12,12 @@ class Student < Sequel::Model
       sum + session.duration_hours
     end
   end
+
+  def week_hours(week)
+    lab_sessions.reject { |session| session.time_out.nil? }.select do |session|
+      session.time_in >= week[:start] && session.time_in < week[:end]
+    end.inject(0) do |sum, session|
+      sum + session.duration_hours
+    end
+  end
 end
