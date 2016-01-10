@@ -16,7 +16,7 @@
       <a class="brand" href="/">Cheesy FRC Hours</a>
       <ul class="nav">
         <li><a href="/leader_board"><i class="icon-th-list icon-black"></i> Leader Board</a></li>
-        <% if @user_info && @user_info["mentor"] == 1 || @user_info["leader"] == 1 %>
+        <% if @user_info && (@user_info["mentor"] == 1 || @user_info["leader"] == 1) %>
           <li><a href="/strike_report"><i class="icon-remove icon-black"></i> Strike Report</a></li>
         <% end %>
         <% if @user_info && @user_info["mentor"] == 1 %>
