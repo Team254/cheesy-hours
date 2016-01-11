@@ -12,6 +12,9 @@ require "config/environment"
 require "models"
 require "wordpress_authentication"
 
+###Tag WS###
+require "sinatra-websocket"
+
 module CheesyFrcHours
   class Server < Sinatra::Base
     include WordpressAuthentication
@@ -23,7 +26,7 @@ module CheesyFrcHours
     # Enforce authentication for all non-public routes.
     before do
       @user_info = JSON.parse(session[:user_info]) rescue nil
-      authenticate! unless ["/", "/login", "/signin", "/sms"].include?(request.path)
+      authenticate! unless (["/", "/login", "/signin", "/sms"].include?(request.path) || request.path.include?("tag/event"))
     end
 
     def authenticate!
@@ -61,9 +64,9 @@ module CheesyFrcHours
       halt(400, "Invalid student.") if @student.nil?
 
       # Restrict sign-ins to the NASA Lab's IP address ranges.
-      unless SIGNIN_IP_WHITELIST.any? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
-        halt(400, "Invalid IP address. Must sign in from the NASA Lab.")
-      end
+      #unless SIGNIN_IP_WHITELIST.any? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
+      #  halt(400, "Invalid IP address. Must sign in from the NASA Lab.")
+      #end
 
       # Check for existing open lab sessions.
       unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
@@ -230,7 +233,7 @@ module CheesyFrcHours
     end
 
     get "/reindex_students" do
-      halt(400, "Need to be an administrator.") unless @user_info["administrator"] == "1"
+      halt(400, "Need to be an administrator.") unless (@user_info["administrator"] == true || @user_info["administrator"] == 1)
 
       students = get_wordpress_student_list
       Student.truncate
@@ -264,6 +267,170 @@ module CheesyFrcHours
           <Sms>#{messages.join("</Sms><Sms>")}</Sms>
         </Response>
       END
+    end
+
+
+    ########################
+    #    Tag Management    #
+    ########################
+
+    ###Set up Websocket###
+    set :sockets, []
+    currentRFIDMentors = []
+    currentRFIDStudents = []
+
+    tags = Hash.new
+
+    get '/tag_ws' do
+      if !request.websocket?
+        @signed_in_sessions = LabSession.where(:time_out => nil)
+        erb :index
+      else
+
+      end
+      request.websocket do |ws|
+        ws.onopen do
+          ws.send("{ \"status\": \"Connection Opened\"}")
+          tags.each do |tag|
+            sendWsMsg({
+              :user => tag[1][:user],
+              :state => "in",
+              :tag => tag[1][:tagId]
+            })
+          end
+          settings.sockets << ws
+        end
+        ws.onmessage do |msg|
+          parse = JSON.parse(msg)
+          
+        end
+        ws.onclose do
+          ws.send("{ \"status\": \"Connection Closed\"}")
+          settings.sockets.delete(ws)
+        end
+      end
+    end
+
+    get "/tag/events/in/:id" do
+      tag = Tag.first(:tag_id => params[:id])
+      user = genUserObject(params[:id])
+
+
+      if (tag == nil)
+        tags[params[:id].to_s] = {:type => "unassigned", :tagId => params[:id]}
+      elsif (tag.student_id != nil)
+        student = Student.with_pk!(tag.student_id)
+        tags[params[:id].to_s] = {:type => "student", :tag => tag, :tagId => params[:id], :user => user}
+        currentRFIDStudents.push(params[:id].to_s)
+
+
+        #Handle Sign In Events
+        if (currentRFIDMentors.size == 0)
+          #No mentor present, must be sign in
+          if (!(LabSession.where(:student_id => student.id, :time_out => nil).empty?))
+            sendWsMsg({:signin => "Error: #{student.first_name} is already Signed in"})
+          else
+            student.add_lab_session(:time_in => Time.now)
+            sendWsMsg({:signin => "Signed in #{student.first_name} #{student.last_name}!"})
+          end
+        else
+          #mentor present, must be sign out
+          lab_session = student.lab_sessions.select { |session| session.time_out.nil? }.first
+          if lab_session.nil?
+            sendWsMsg({:signin => "Error: #{student.first_name} #{student.last_name} is not signed in."})
+          else
+            mentor = Mentor.with_pk(Tag.first(:tag_id => currentRFIDMentors[0]).mentor_id)
+            lab_session.update(:time_out => Time.now, :mentor_id => mentor.id, :mentor_name => "#{mentor.first_name} #{mentor.last_name}")
+            sendWsMsg({:signin => "#{student.first_name} #{student.last_name} signed out after " +
+                "#{lab_session.duration_hours.round(1)} hours by #{mentor.first_name} #{mentor.last_name}"})
+          end
+        end
+
+
+      else
+        mentor = Mentor.with_pk!(tag.mentor_id)
+        tags[params[:id].to_s] = {:type => "mentor", :tag => tag, :tagId => params[:id], :user => user}
+        currentRFIDMentors.push(params[:id].to_s)
+      end
+
+
+      sendWsMsg({
+        :user => user,
+        :state => "in",
+        :tag => params[:id]
+      })
+
+      "asd"
+
+    end
+
+    get "/tag/events/out/:id" do
+      tag = Tag.first(:tag_id => params[:id])
+      tags.delete(params[:id])
+
+      if (tag == nil)
+      elsif (tag.student_id != nil)
+        currentRFIDStudents.delete(params[:id].to_s)
+      else
+        currentRFIDMentors.delete(params[:id].to_s)
+      end
+
+      sendWsMsg({
+        :user => genUserObject(params[:id]),
+        :state => "out",
+        :tag => params[:id]
+      })
+
+    end
+
+    get "/tag/manage" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      erb :tag_manage_wizard, :locals => {:tag => Tag}      
+    end
+
+    get "/tag/manage/assign" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      tag = Tag.first(:tag_id => params["tag"])
+      if (tag == nil)
+        if (params["mode"] == "student")
+          Tag.insert(:student_id => params["id"], :tag_id => params["tag"])
+        elsif (params["mode"] == "mentor")
+          Tag.insert(:mentor_id => params["id"], :tag_id => params["tag"])
+        end
+      else 
+        if (params["mode"] == "student")
+          tag.student_id = params["id"].to_i
+          tag.mentor_id = nil
+        elsif (params["mode"] == "mentor")
+          tag.mentor_id = params["id"].to_i
+          tag.student_id = nil
+        end
+        tag.save()
+      end
+    end
+
+    get "/tag/live" do
+      erb :live_tag_view
+    end
+
+    def sendWsMsg (msg) 
+      EM.next_tick { settings.sockets.each{|s| s.send(JSON.generate(msg))}}
+    end
+
+    def genUserObject (tagid) 
+      tag = Tag.first(:tag_id => params[:id])
+      user = Hash.new
+      if (tag == nil)
+        user = nil
+      elsif (tag.student_id != nil)
+        student = Student.with_pk!(tag.student_id)
+        user = {:name => student.first_name + " " + student.last_name, :mentor => false, :studentid => student.id}
+      else
+        mentor = Mentor.with_pk!(tag.mentor_id)
+        user = {:name => mentor.first_name + " " + mentor.last_name, :mentor => true, :mentorid => mentor.id}
+      end
+
+      return user
     end
   end
 end
