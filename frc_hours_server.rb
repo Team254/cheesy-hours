@@ -64,9 +64,9 @@ module CheesyFrcHours
       halt(400, "Invalid student.") if @student.nil?
 
       # Restrict sign-ins to the NASA Lab's IP address ranges.
-      #unless SIGNIN_IP_WHITELIST.any? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
-      #  halt(400, "Invalid IP address. Must sign in from the NASA Lab.")
-      #end
+      unless SIGNIN_IP_WHITELIST.any? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
+        halt(400, "Invalid IP address. Must sign in from the NASA Lab.")
+      end
 
       # Check for existing open lab sessions.
       unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
@@ -233,7 +233,7 @@ module CheesyFrcHours
     end
 
     get "/reindex_students" do
-      halt(400, "Need to be an administrator.") unless (@user_info["administrator"] == true || @user_info["administrator"] == 1)
+      halt(400, "Need to be an administrator.") unless (@user_info["administrator"] == true || @user_info["administrator"] == "1")
 
       students = get_wordpress_student_list
       Student.truncate
@@ -276,23 +276,22 @@ module CheesyFrcHours
 
     ###Set up Websocket###
     set :sockets, []
-    currentRFIDMentors = []
-    currentRFIDStudents = []
+    @@current_rfid_mentors = []
+    @@current_rfid_students = []
 
-    tags = Hash.new
+    @@tags = Hash.new
 
     get '/tag_ws' do
       if !request.websocket?
         @signed_in_sessions = LabSession.where(:time_out => nil)
         erb :index
-      else
-
       end
+
       request.websocket do |ws|
         ws.onopen do
           ws.send("{ \"status\": \"Connection Opened\"}")
-          tags.each do |tag|
-            sendWsMsg({
+          @@tags.each do |tag|
+            send_ws_msg({
               :user => tag[1][:user],
               :state => "in",
               :tag => tag[1][:tagId]
@@ -300,10 +299,7 @@ module CheesyFrcHours
           end
           settings.sockets << ws
         end
-        ws.onmessage do |msg|
-          parse = JSON.parse(msg)
-          
-        end
+
         ws.onclose do
           ws.send("{ \"status\": \"Connection Closed\"}")
           settings.sockets.delete(ws)
@@ -313,70 +309,64 @@ module CheesyFrcHours
 
     get "/tag/events/in/:id" do
       tag = Tag.first(:tag_id => params[:id])
-      user = genUserObject(params[:id])
-
-
+      user = get_user_by_tag(params[:id])
       if (tag == nil)
-        tags[params[:id].to_s] = {:type => "unassigned", :tagId => params[:id]}
+        @@tags[params[:id].to_s] = {:type => "unassigned", :tagId => params[:id]}
       elsif (tag.student_id != nil)
-        student = Student.with_pk!(tag.student_id)
-        tags[params[:id].to_s] = {:type => "student", :tag => tag, :tagId => params[:id], :user => user}
-        currentRFIDStudents.push(params[:id].to_s)
+        student = user[:student]
 
+        @@tags[params[:id].to_s] = {:type => "student", :tag => tag, :tagId => params[:id], :user => user}
+        @@current_rfid_students.push(params[:id].to_s)
 
         #Handle Sign In Events
-        if (currentRFIDMentors.size == 0)
+        if (@@current_rfid_mentors.size == 0)
           #No mentor present, must be sign in
-          if (!(LabSession.where(:student_id => student.id, :time_out => nil).empty?))
-            sendWsMsg({:signin => "Error: #{student.first_name} is already Signed in"})
+
+          if (!(LabSession.where(:student_id => user[:id], :time_out => nil).empty?))
+            send_ws_msg({:signin => "Error: #{student.first_name} is already Signed in"})
           else
             student.add_lab_session(:time_in => Time.now)
-            sendWsMsg({:signin => "Signed in #{student.first_name} #{student.last_name}!"})
+            send_ws_msg({:signin => "Signed in #{student.first_name} #{student.last_name}!"})
           end
         else
           #mentor present, must be sign out
           lab_session = student.lab_sessions.select { |session| session.time_out.nil? }.first
           if lab_session.nil?
-            sendWsMsg({:signin => "Error: #{student.first_name} #{student.last_name} is not signed in."})
+            send_ws_msg({:signin => "Error: #{student.first_name} #{student.last_name} is not signed in."})
           else
-            mentor = Mentor.with_pk(Tag.first(:tag_id => currentRFIDMentors[0]).mentor_id)
+            mentor = Mentor[Tag.first(:tag_id => @@current_rfid_mentors[0]).mentor_id]
             lab_session.update(:time_out => Time.now, :mentor_id => mentor.id, :mentor_name => "#{mentor.first_name} #{mentor.last_name}")
-            sendWsMsg({:signin => "#{student.first_name} #{student.last_name} signed out after " +
+            send_ws_msg({:signin => "#{student.first_name} #{student.last_name} signed out after " +
                 "#{lab_session.duration_hours.round(1)} hours by #{mentor.first_name} #{mentor.last_name}"})
           end
         end
-
-
-      else
-        mentor = Mentor.with_pk!(tag.mentor_id)
-        tags[params[:id].to_s] = {:type => "mentor", :tag => tag, :tagId => params[:id], :user => user}
-        currentRFIDMentors.push(params[:id].to_s)
+      elsif (tag.mentor_id != nil)
+        mentor = user[:mentor]
+        @@tags[params[:id].to_s] = {:type => "mentor", :tag => tag, :tagId => params[:id], :user => user}
+        @@current_rfid_mentors.push(params[:id].to_s)
       end
 
-
-      sendWsMsg({
+      send_ws_msg({
         :user => user,
         :state => "in",
         :tag => params[:id]
       })
 
-      "asd"
-
     end
 
     get "/tag/events/out/:id" do
       tag = Tag.first(:tag_id => params[:id])
-      tags.delete(params[:id])
+      @@tags.delete(params[:id])
 
       if (tag == nil)
       elsif (tag.student_id != nil)
-        currentRFIDStudents.delete(params[:id].to_s)
-      else
-        currentRFIDMentors.delete(params[:id].to_s)
+        @@current_rfid_students.delete(params[:id].to_s)
+      elsif (tag.mentor_id != nil)
+        @@current_rfid_mentors.delete(params[:id].to_s)
       end
 
-      sendWsMsg({
-        :user => genUserObject(params[:id]),
+      send_ws_msg({
+        :user => get_user_by_tag(params[:id]),
         :state => "out",
         :tag => params[:id]
       })
@@ -413,24 +403,22 @@ module CheesyFrcHours
       erb :live_tag_view
     end
 
-    def sendWsMsg (msg) 
+    def send_ws_msg (msg) 
       EM.next_tick { settings.sockets.each{|s| s.send(JSON.generate(msg))}}
     end
 
-    def genUserObject (tagid) 
+    def get_user_by_tag (tagid) 
       tag = Tag.first(:tag_id => params[:id])
-      user = Hash.new
       if (tag == nil)
-        user = nil
+        return nil
       elsif (tag.student_id != nil)
-        student = Student.with_pk!(tag.student_id)
-        user = {:name => student.first_name + " " + student.last_name, :mentor => false, :studentid => student.id}
-      else
-        mentor = Mentor.with_pk!(tag.mentor_id)
-        user = {:name => mentor.first_name + " " + mentor.last_name, :mentor => true, :mentorid => mentor.id}
+        student = Student[tag.student_id]
+        return {:name => student.first_name + " " + student.last_name, :mentor => false, :studentid => student.id, :student => student}
+      elsif (tag.mentor_id != nil)
+        mentor = Mentor[tag.mentor_id]
+        return {:name => mentor.first_name + " " + mentor.last_name, :mentor => true, :mentorid => mentor.id, :mentor => mentor}
       end
 
-      return user
     end
   end
 end

@@ -9,5 +9,6 @@ gem "pathological"
 gem "rake"
 gem "sequel"
 gem "sinatra"
-gem "thin"
 gem "sinatra-websocket"
+gem "thin"
+

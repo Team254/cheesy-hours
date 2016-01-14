@@ -20,11 +20,7 @@ module CheesyFrcHours
     def get_wordpress_user_info
       if wordpress_cookie
         response = HTTParty.get("#{WORDPRESS_AUTH_URL}?cookie=#{URI.encode(wordpress_cookie)}")
-        body = JSON.parse(response.body)
-        #######
-        #body["mentor"] = 1
-        #######
-        return body if response.code == 200
+        return JSON.parse(response.body) if response.code == 200
       end
       return nil
     end
