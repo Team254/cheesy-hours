@@ -1,25 +1,17 @@
 <%= erb :header %>
-	<div class="container">
-	</div>
-	<script>
+  <div class="container"></div>
+  <script>
+    var ws = new WebSocket("ws://" + window.location.host + "/tag_ws");
 
-		
-		var ws = new WebSocket("ws://" + window.location.host + "/tag_ws");
+    ws.onmessage = function(data) {
+      var dat = JSON.parse(data.data);
+      console.log(dat);
+      if (dat.signin) {
+        var toappend = $("<h1>" + dat.signin + "</h1>").hide().fadeIn();
+        $(".container").append(toappend);
 
-		var currentTagCount = 0;
-		ws.onmessage = function(data){
-			var dat = JSON.parse(data.data)
-			console.log(dat)
-			if (dat.signin != undefined) {
-				var toappend = $("<h1>" + dat.signin + "</h1>").hide().fadeIn()
-
-				$(".container").append(toappend)
-
-				setTimeout(function(){
-					toappend.fadeOut()
-				}, 5000)
-			}
-		};
-		
-	</script>
+        setTimeout(function() { toappend.fadeOut(); }, 5000);
+      }
+    };
+  </script>
 <%= erb :footer %>

@@ -11,4 +11,3 @@ gem "sequel"
 gem "sinatra"
 gem "sinatra-websocket"
 gem "thin"
-
