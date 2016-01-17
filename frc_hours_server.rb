@@ -23,7 +23,7 @@ module CheesyFrcHours
 
     # Enforce authentication for all non-public routes.
     before do
-      @user_info = { "mentor" => 1, "administrator" => "1" } #JSON.parse(session[:user_info]) rescue nil
+      @user_info = JSON.parse(session[:user_info]) rescue nil
       unless (["/", "/login", "/signin", "/sms", "/tag/live", "/tag_ws"].include?(request.path) ||
           request.path.include?("tag/event"))
         authenticate!
