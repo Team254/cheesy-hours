@@ -9,6 +9,8 @@
   <link rel="apple-touch-icon" href="http://media.team254.com/homepage/icons/apple-touch-icon-57x57.png">
   <link href="/css/bootstrap.min.css" rel="stylesheet">
   <link href="/css/css.css" rel="stylesheet" type="text/css" />
+  <script src="/js/jquery-1.10.1.min.js"></script>
+  <script src="/js/bootstrap.min.js"></script>
 </head>
 <body>
   <div class="navbar">
@@ -16,11 +18,13 @@
       <a class="brand" href="/">Cheesy FRC Hours</a>
       <ul class="nav">
         <li><a href="/leader_board"><i class="icon-th-list icon-black"></i> Leader Board</a></li>
+        <li><a href="/tag/live"><i class="icon-tag icon-black"></i> RFID Sign-in</a></li>
         <% if @user_info && (@user_info["mentor"] == 1 || @user_info["leader"] == 1) %>
           <li><a href="/strike_report"><i class="icon-remove icon-black"></i> Strike Report</a></li>
         <% end %>
         <% if @user_info && @user_info["mentor"] == 1 %>
           <li><a href="/mentors"><i class="icon-user icon-black"></i> Manage Mentors</a></li>
+          <li><a href="/tag/manage"><i class="icon-tag icon-black"></i> Manage Tags</a></li>
         <% end %>
       </ul>
       <div class="pull-right">
