@@ -19,7 +19,7 @@ module CheesyFrcHours
 
     use Rack::Session::Cookie, :key => "rack.session"
 
-    SIGNIN_IP_WHITELIST = ["198.123.", "128.102."]
+    SIGNIN_IP_WHITELIST = ["64.62.178.135"]
 
     # Enforce authentication for all non-public routes.
     before do
@@ -262,6 +262,22 @@ module CheesyFrcHours
         rows << [student.last_name, student.first_name, student.id, student.project_hours].join(",")
       end
       rows.join("\n")
+    end
+
+    get "/strike_report" do
+      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1 || @user_info["leader"] == 1
+
+      @weeks = []
+      start_time = Time.parse("2016-01-10 00:00:00 PST")
+      begin
+        week = { :start => start_time }
+        start_time += 86400 * 7
+        week[:end] = start_time
+        @weeks << week
+      end while start_time < Time.now
+      @min_hours = 5
+
+      erb :strike_report
     end
 
     def sms_response(messages)

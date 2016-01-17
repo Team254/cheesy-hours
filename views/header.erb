@@ -19,6 +19,9 @@
       <ul class="nav">
         <li><a href="/leader_board"><i class="icon-th-list icon-black"></i> Leader Board</a></li>
         <li><a href="/tag/live"><i class="icon-tag icon-black"></i> RFID Sign-in</a></li>
+        <% if @user_info && (@user_info["mentor"] == 1 || @user_info["leader"] == 1) %>
+          <li><a href="/strike_report"><i class="icon-remove icon-black"></i> Strike Report</a></li>
+        <% end %>
         <% if @user_info && @user_info["mentor"] == 1 %>
           <li><a href="/mentors"><i class="icon-user icon-black"></i> Manage Mentors</a></li>
           <li><a href="/tag/manage"><i class="icon-tag icon-black"></i> Manage Tags</a></li>
