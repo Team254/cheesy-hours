@@ -372,12 +372,12 @@ module CheesyFrcHours
     end
 
     get "/tag/manage" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Need to be an administrator.") unless (@user_info["administrator"] == true || @user_info["administrator"] == "1")
       erb :tag_manage_wizard
     end
 
     get "/tag/manage/assign" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Need to be an administrator.") unless (@user_info["administrator"] == true || @user_info["administrator"] == "1")
 
       tag = Tag.first(:tag_id => params["tag"])
       if tag.nil?
