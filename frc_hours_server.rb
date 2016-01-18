@@ -367,7 +367,7 @@ module CheesyFrcHours
       elsif !tag.mentor_id.nil?
         @@current_rfid_mentors.delete(params[:id].to_s)
       else
-        error "Tag does not reference a student or mentor."
+        error = "Tag does not reference a student or mentor."
       end
 
       #Needs to execute for wizard to work
