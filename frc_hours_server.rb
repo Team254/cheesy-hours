@@ -358,17 +358,23 @@ module CheesyFrcHours
       tag = Tag.first(:tag_id => params[:id])
       @@tags.delete(params[:id])
 
+      #cache any error for halting after the websocket sends it's message
+      error = nil
       if tag.nil?
-        halt(404, "No such tag.")
+        error = "No such tag."
       elsif !tag.student_id.nil?
         @@current_rfid_students.delete(params[:id].to_s)
       elsif !tag.mentor_id.nil?
         @@current_rfid_mentors.delete(params[:id].to_s)
       else
-        halt(400, "Tag does not reference a student or mentor.")
+        error "Tag does not reference a student or mentor."
       end
 
+      #Needs to execute for wizard to work
       send_ws_msg(:user => get_user_by_tag(params[:id]), :state => "out", :tag => params[:id])
+
+      #Now check for error
+      halt(400, error) unless (error == nil)
     end
 
     get "/tag/manage" do
