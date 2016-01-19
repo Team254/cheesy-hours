@@ -422,10 +422,10 @@ module CheesyFrcHours
 
       if !tag.student_id.nil?
         student = Student[tag.student_id]
-        return { :type => :student, :user => student, :tag_id => tag.id }
+        return { :type => :student, :user => student, :name => "#{student.first_name} #{student.last_name}", :tag_id => tag.id }
       elsif !tag.mentor_id.nil?
         mentor = Mentor[tag.mentor_id]
-        return { :type => :mentor, :user => mentor, :tag_id => tag.id }
+        return { :type => :mentor, :user => mentor, :name => "#{mentor.first_name} #{mentor.last_name}", :tag_id => tag.id }
       end
 
       raise "Tag does not reference a student or mentor."

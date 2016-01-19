@@ -99,18 +99,26 @@
         });
 
         $("#ment").bind("keyup", function() {
-          for (m in mentors) {
-            if (mentors[m].indexOf($("ment").val() > -1)) {
-              $("#searchresult").html(mentors[m]);
-              resultid = m;
-              resultmode = "mentor";
-              break;
-            } else {
-              $("#searchresult").html("");
+        	var mentor = null;
+        	var id = null;
+        	for (var m in mentors) {
+				    if (mentors[m].toLowerCase().indexOf($("#ment").val().toLowerCase()) > -1) {
+			        console.log("Found Mentor @ " + m);
+
+			        mentor = mentors[m]
+
+			        $("#searchresult").html(mentor);
+			        id = m;
+			        resultmode = "mentor"
+			        resultid = id;
+			        break;
+				    } else {
+				    	$("#searchresult").html("");
               resultid = null;
               resultmode = null;
-            }
-          }
+				    }
+					}
+
           upd2();
         });
 

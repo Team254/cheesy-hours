@@ -24,7 +24,9 @@
         <% end %>
         <% if @user_info && @user_info["mentor"] == 1 %>
           <li><a href="/mentors"><i class="icon-user icon-black"></i> Manage Mentors</a></li>
-          <li><a href="/tag/manage"><i class="icon-tag icon-black"></i> Manage Tags</a></li>
+        <% end %>
+        <% if @user_info && (@user_info["administrator"] == true || @user_info["administrator"] == "1") %>
+                <li><a href="/tag/manage"><i class="icon-tag icon-black"></i> Manage Tags</a></li>
         <% end %>
       </ul>
       <div class="pull-right">
