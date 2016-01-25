@@ -3,8 +3,7 @@
 #
 # Sets up database connection.
 
-require "pathological"
+require_relative "config"
 
-require "config/environment"
-
-DB = Sequel.mysql2({ :host => DB_HOST, :user => DB_USER, :password => DB_PASSWORD, :database => DB_DATABASE })
+DB = Sequel.mysql2({ :host => Config.db_host, :user => Config.db_user, :password => Config.db_password,
+	:database => Config.db_database })

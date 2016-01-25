@@ -1,0 +1,15 @@
+{
+  "global": {
+    "db_host": "localhost",
+    "db_user": "team254",
+    "db_database": "cheesy_frc_hours",
+    "port": 9006,
+    "base_address": "https://frc-hours.team254.com"
+    },
+  "dev": {
+    "db_password": "correcthorsebatterystaple"
+  },
+  "prod": {
+    "db_password": "Encrypted:0iYLP6HuJ7qY1/BtUYAQ+Q==\n"
+  }
+}

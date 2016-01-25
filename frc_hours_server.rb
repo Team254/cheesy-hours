@@ -9,7 +9,7 @@ require "pathological"
 require "sinatra/base"
 require "sinatra-websocket"
 
-require "config/environment"
+require "config"
 require "models"
 require "wordpress_authentication"
 
@@ -45,7 +45,7 @@ module CheesyFrcHours
         session[:user_info] = @user_info.to_json
         redirect @redirect
       else
-        redirect_path = CGI.escape("#{BASE_ADDRESS}/login?redirect=#{@redirect}")
+        redirect_path = CGI.escape("#{Config.base_address}/login?redirect=#{@redirect}")
         redirect "http://www.team254.com/wp-login.php?redirect_to=#{redirect_path}"
       end
     end

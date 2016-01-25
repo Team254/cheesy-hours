@@ -1,8 +1,8 @@
 source "https://rubygems.org"
 
 gem "activesupport"
+gem "aescrypt"
 gem "daemons"
-gem "fezzik"
 gem "httparty"
 gem "mysql2"
 gem "pathological"
