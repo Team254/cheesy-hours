@@ -1,140 +1,140 @@
 <%= erb :header %>
-  <div class="container">
-  <h1>Tag Setup Wizard</h1>
-  <br />
-  <div id="step1">
-    <h3>Step 1 of 2</h3>
-    <p>Remove all tags from the reader's vicinity then put only one near it.</p>
-    <p>Curently, the reader sees <strong><span id="tagct">0</span></strong> tags.</p>
-    <button class="btn btn-primary disabled" disabled id="step1b">Proceed to next step</button>
-  </div>
-  <div id="step2" style="display:none">
-    <h3>Step 2 of 2</h3>
-    <p>Assign a user to this tag (<code id="tagid"></code>)</p>
-    <strong>Student ID: <input id="stid" type="text" placeholder="254254"></strong><br/>
+	<div class="container">
+	<h1>Tag Setup Wizard</h1>
+	<br />
+	<div id="step1">
+		<h3>Step 1 of 2</h3>
+		<p>Remove all tags from the reader's vicinity then put only one near it.</p>
+		<p>Curently, the reader sees <strong><span id="tagct">0</span></strong> tags.</p>
+		<button class="btn btn-primary disabled" disabled id="step1b">Proceed to next step</button>
+	</div>
+	<div id="step2" style="display:none">
+		<h3>Step 2 of 2</h3>
+		<p>Assign a user to this tag (<code id="tagid"></code>)</p>
+		<strong>Student ID: <input id="stid" type="text" placeholder="254254"></strong><br/>
 
-    <h4>OR</h4>
-    <strong>Search a Mentor by Name: <input id="ment" type="text" placeholder="Cheesy Poof"></strong><br />
+		<h4>OR</h4>
+		<strong>Search a Mentor by Name: <input id="ment" type="text" placeholder="Cheesy Poof"></strong><br />
 
-    <strong>Result: </strong><span id="searchresult">none</span><br/><br/><br/>
+		<strong>Result: </strong><span id="searchresult">none</span><br/><br/><br/>
 
-    <button id="step2b" class="btn btn-primary disabled" disabled >Proceed to next step</button>
-  </div>
-  <div id="step3" style="display:none">
+		<button id="step2b" class="btn btn-primary disabled" disabled >Proceed to next step</button>
+	</div>
+	<div id="step3" style="display:none">
+		
+	</div>
+	<script>
+		var steps = 3;
+		var step = 1;
+		var tag = "";
+		var savedTag = ""
 
-  </div>
-  <script>
-    var steps = 3;
-    var step = 1;
-    var tag = "";
-    var savedTag = "";
+		var students = {}
+		<%Student.each do |s|%>
+			students[<%=s.id%>] = ("<%="#{s.first_name} #{s.last_name}"%>")
+		<%end%>
 
-    var students = {};
-    <% Student.each do |s| %>
-      students[<%= s.id %>] = ("<%= s.first_name %> <%= s.last_name %>")
-    <% end %>
+		var mentors = {}
+		<%Mentor.each do |m|%>
+			mentors[<%=m.id%>] = ("<%="#{m.first_name} #{m.last_name}"%>")
+		<%end%>
+		
+		var ws = new WebSocket("wss://" + window.location.host + "/tag_ws");
 
-    var mentors = {}
-    <% Mentor.each do |m| %>
-      mentors[<%= m.id %>] = ("<%= m.first_name %> <%= m.last_name %>")
-    <% end %>
+		var currentTagCount = 0;
+		ws.onmessage = function(data){
+			var dat = JSON.parse(data.data);
+			console.log(dat)
+			if (dat.state == "in") {
+				currentTagCount++;
+				tagChangedEvent(dat);
+			} else if (dat.state == "out") {
+				if (currentTagCount > 0) {
+					currentTagCount--;
+				}
+				tagChangedEvent(dat);
+			}
 
-    var ws = new WebSocket("ws://" + window.location.host + "/tag_ws");
+		};
+		
+		function tagChangedEvent(dat) {
+			console.log(dat)
+			tag = dat.tag;
+			$("#tagct").html(currentTagCount)
+			if (step == 1) {
+				if (dat.user !== null && currentTagCount == 1) {
+					$("#tagct").html("1 <span style='color:red'>(Already Assigned to " + dat.user.name + ")</span>")
+				}
+				if (currentTagCount == 1) {
+					$("#step1b").removeAttr("disabled")
+				} else {
+					$("#step1b").attr("disabled", "true")
+				}
+			}
+		}
 
-    var currentTagCount = 0;
-    ws.onmessage = function(data) {
-      var dat = JSON.parse(data.data);
-      console.log(dat);
-      if (dat.state == "in") {
-        currentTagCount++;
-        tagChangedEvent(dat);
-      } else if (dat.state == "out") {
-        if (currentTagCount > 0) {
-          currentTagCount--;
-        }
-        tagChangedEvent(dat);
-      }
-    };
+		(function(){
+			$("#step1b").bind("click", function(){
+				savedTag = tag;
+				step++
+				$("#step1").hide();
+				$("#tagid").html(savedTag)
+				$("#step2").show();
 
-    function tagChangedEvent(dat) {
-      console.log(dat)
-      tag = dat.tag;
-      $("#tagct").html(currentTagCount)
-      if (step == 1) {
-        if (dat.user !== null && currentTagCount == 1) {
-          $("#tagct").html("1 <span style='color:red'>(Already Assigned to " + dat.user.name + ")</span>")
-        }
-        if (currentTagCount == 1) {
-          $("#step1b").removeAttr("disabled")
-        } else {
-          $("#step1b").attr("disabled", "true")
-        }
-      }
-    };
 
-    (function() {
-      $("#step1b").bind("click", function(){
-        savedTag = tag;
-        step++;
-        $("#step1").hide();
-        $("#tagid").html(savedTag);
-        $("#step2").show();
+				//Step 2 Functions
 
-        //Step 2 Functions
+				var resultid = 0
+				var resultmode = ""
 
-        var resultid = 0;
-        var resultmode = "";
-
-        $("#stid").bind("keyup", function() {
-          if (students["" + $("#stid").val()] != undefined) {
-            $("#searchresult").html(students["" + $("#stid").val()]);
-            resultid = parseInt($("#stid").val());
-            resultmode = "student";
-          } else {
-            $("#searchresult").html("");
-            resultid = null;
-            resultmode = null;
-          }
-          upd2();
-        });
-
-        $("#ment").bind("keyup", function() {
-        	var mentor = null;
-        	var id = null;
-        	for (var m in mentors) {
-				    if (mentors[m].toLowerCase().indexOf($("#ment").val().toLowerCase()) > -1) {
-			        console.log("Found Mentor @ " + m);
-
-			        mentor = mentors[m]
-
-			        $("#searchresult").html(mentor);
-			        id = m;
-			        resultmode = "mentor"
-			        resultid = id;
-			        break;
-				    } else {
-				    	$("#searchresult").html("");
-              resultid = null;
-              resultmode = null;
-				    }
+				$("#stid").bind("keyup", function(){
+					if(students["" + $("#stid").val()] != undefined) {
+						$("#searchresult").html(students["" + $("#stid").val()])
+						resultid = parseInt($("#stid").val())
+						resultmode = "student"
+					} else {
+						$("#searchresult").html("")
+						resultid = null;
+						resultmode = null;
 					}
+					upd2()
+				})
 
-          upd2();
-        });
+				$("#ment").bind("keyup", function(){
+					for (m in mentors) {
+						if (mentors[m].indexOf($("ment").val() > -1)) {
+							$("#searchresult").html(mentors[m])
+							resultid = m
+							resultmode = "mentor"
+							break;
+						} else {
+							$("#searchresult").html("")
+							resultid = null;
+							resultmode = null;
+						}
+					}
+					upd2()
+				})
 
-        function upd2() {
-          $("#step2b").removeAttr("disabled");
-          if (resultmode != "student" && resultmode != "mentor") {
-            $("#step2b").attr("disabled", "")
-          }
-        };
+				function upd2(){
+					$("#step2b").removeAttr("disabled")
+					if (resultmode == "student") {
 
-        $("#step2b").bind("click", function() {
-          $.get( "/tag/manage/assign", { tag: savedTag, mode: resultmode, id: resultid }, function(a, b) {
-            window.location.reload()
-          });
-        });
-      });
-    })();
-  </script>
+					} else  if (resultmode == "mentor") {
+
+					} else {
+						$("#step2b").attr("disabled", "")
+					}
+				}
+
+				$("#step2b").bind("click", function(){
+					$.get( "/tag/manage/assign", { tag: savedTag, mode: resultmode, id: resultid }, function(a, b) {
+						window.location.reload()
+					});
+					//window.location.reload()
+				})
+			})
+		})()
+		
+	</script>
 <%= erb :footer %>
