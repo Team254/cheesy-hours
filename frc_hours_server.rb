@@ -330,8 +330,12 @@ module CheesyFrcHours
           unless LabSession.where(:student_id => student.id, :time_out => nil).empty?
             send_ws_msg(:signin => "Error: #{student.first_name} is already signed in.")
           else
-            student.add_lab_session(:time_in => Time.now)
-            send_ws_msg(:signin => "Signed in #{student.first_name} #{student.last_name}!")
+            #check for debouncing: allow sign in only 1 minute after sign out
+            if (((Time.now - student.lab_sessions.last.time_out)/60) > 1)
+              student.add_lab_session(:time_in => Time.now)
+              send_ws_msg(:signin => "Signed in #{student.first_name} #{student.last_name}!")
+            end
+            
           end
         else
           #mentor present, must be sign out
