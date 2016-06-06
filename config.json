@@ -5,7 +5,7 @@
     "db_database": "cheesy_frc_hours",
     "port": 9006,
     "base_address": "https://frc-hours.team254.com"
-    },
+  },
   "dev": {
     "db_password": "correcthorsebatterystaple"
   },
