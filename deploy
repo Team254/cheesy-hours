@@ -3,8 +3,8 @@ set -e
 
 USER=team254
 HOST=ec2.team254.com
-APP=cheesy-frc-hours
-SCRIPT_NAME=frc_hours_server
+APP=cheesy-hours
+SCRIPT_NAME=hours_server
 
 echo "Deploying $APP from Git master branch..."
 echo

@@ -13,7 +13,7 @@ require "config"
 require "models"
 require "wordpress_authentication"
 
-module CheesyFrcHours
+module CheesyHours
   class Server < Sinatra::Base
     include WordpressAuthentication
 

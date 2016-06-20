@@ -7,7 +7,7 @@ require "json"
 
 require "config"
 
-module CheesyFrcHours
+module CheesyHours
   # Helper mixin for third-party authentication using Wordpress.
   module WordpressAuthentication
     STUDENT_LIST_URL = "http://www.team254.com/auth/student_list.php"
