@@ -16,7 +16,7 @@
       </tr>
     <% end %>
   </table>
-  <% if @user_info["mentor"] == 1 %>
+  <% if @user.has_permission?("HOURS_VIEW_REPORT") %>
     <h4><a href="/csv_report">Download CSV Report</a></h4>
   <% end %>
 </div>

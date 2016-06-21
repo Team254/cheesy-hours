@@ -5,54 +5,38 @@
 
 require "active_support/time"
 require "cgi"
+require "cheesy-common"
 require "pathological"
 require "sinatra/base"
 require "sinatra-websocket"
 
-require "config"
 require "models"
-require "wordpress_authentication"
 
 module CheesyHours
   class Server < Sinatra::Base
-    include WordpressAuthentication
-
-    use Rack::Session::Cookie, :key => "rack.session"
+    use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
 
     SIGNIN_IP_WHITELIST = ["64.62.178.135"]
 
     # Enforce authentication for all non-public routes.
     before do
-      @user_info = JSON.parse(session[:user_info]) rescue nil
-      unless (["/", "/login", "/signin", "/sms", "/tag/live", "/tag_ws"].include?(request.path) ||
-          request.path.include?("tag/event"))
-        authenticate!
-      end
-    end
-
-    def authenticate!
-      redirect "/login?redirect=#{request.path}" if @user_info.nil?
-    end
-
-    get "/login" do
-      @redirect = params[:redirect] || "/"
-
-      # Authenticate against Wordpress.
-      wordpress_user_info = get_wordpress_user_info
-      if wordpress_user_info
-        wordpress_user_info.delete("signature")
-        @user_info = wordpress_user_info
-        session[:user_info] = @user_info.to_json
-        redirect @redirect
-      else
-        redirect_path = CGI.escape("#{Config.base_address}/login?redirect=#{@redirect}")
-        redirect "http://www.team254.com/wp-login.php?redirect_to=#{redirect_path}"
+      @user = session[:user]
+      if @user.nil?
+        @user = CheesyCommon::Auth.get_user(request)
+        if @user.nil?
+          unless (["/", "/signin", "/sms", "/tag/live", "/tag_ws"].include?(request.path) ||
+              request.path.include?("tag/event"))
+            redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
+          end
+        else
+          session[:user] = @user
+        end
       end
     end
 
     get "/logout" do
-      session[:user_info] = nil
-      redirect "/"
+      session[:user] = nil
+      redirect "#{CheesyCommon::Config.members_url}/logout"
     end
 
     get "/" do
@@ -89,24 +73,24 @@ module CheesyHours
     end
 
     get "/students/:id/new_lab_session" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
       erb :edit_lab_session
     end
 
     post "/students/:id/new_lab_session" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
       student.add_lab_session(:time_in => params[:time_in], :time_out => params[:time_out],
                               :notes => params[:notes],
-                              :mentor_name => params[:time_out].empty? ? nil : @user_info["name"])
+                              :mentor_name => params[:time_out].empty? ? nil : @user.name_display)
       redirect params[:referrer] || "/leader_board"
     end
 
     get "/lab_sessions/:id/edit" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @referrer = request.referrer
@@ -114,11 +98,11 @@ module CheesyHours
     end
 
     post "/lab_sessions/:id/edit" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       if !params[:time_out].empty? && @lab_session.time_out.nil?
-        mentor_name = @user_info["name"]
+        mentor_name = @user.name_display
       elsif params[:time_out].empty? && @lab_session.time_out
         mentor_name = nil
       else
@@ -130,7 +114,7 @@ module CheesyHours
     end
 
     get "/lab_sessions/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @referrer = request.referrer
@@ -138,7 +122,7 @@ module CheesyHours
     end
 
     post "/lab_sessions/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @lab_session.delete
@@ -146,10 +130,10 @@ module CheesyHours
     end
 
     get "/lab_sessions/:id/sign_out" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if lab_session.nil?
-      lab_session.update(:time_out => Time.now, :mentor_name => @user_info["name"])
+      lab_session.update(:time_out => Time.now, :mentor_name => @user.name_display)
       redirect "/"
     end
 
@@ -159,17 +143,17 @@ module CheesyHours
     end
 
     get "/new_mentor" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       erb :new_mentor
     end
 
     get "/mentors" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       erb :mentors
     end
 
     post "/mentors" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       halt(400, "Missing first name.") if params[:first_name].nil? || params[:first_name].empty?
       halt(400, "Missing last name.") if params[:last_name].nil? || params[:last_name].empty?
       halt(400, "Missing phone number.") if params[:phone_number].nil? || params[:phone_number].empty?
@@ -179,14 +163,14 @@ module CheesyHours
     end
 
     get "/mentors/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @mentor = Mentor[params[:id]]
       halt(400, "Invalid mentor.") if @mentor.nil?
       erb :delete_mentor
     end
 
     post "/mentors/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @mentor = Mentor[params[:id]]
       halt(400, "Invalid mentor.") if @mentor.nil?
       @mentor.delete
@@ -234,26 +218,20 @@ module CheesyHours
     end
 
     get "/reindex_students" do
-      unless (@user_info["administrator"] == true || @user_info["administrator"] == "1")
+      unless @user.has_permission?("HOURS_EDIT")
         halt(400, "Need to be an administrator.")
       end
 
-      students = get_wordpress_student_list
+      students = CheesyCommon::Auth.find_users_with_permission("HOURS_SIGN_IN")
       Student.truncate
       students.each do |student|
-        next if student["student_id"] == "254254"  # Ignore users having the special invite code.
-        begin
-          Student.create(:id => student["student_id"], :first_name => student["first_name"],
-                         :last_name => student["last_name"])
-        rescue Sequel::UniqueConstraintViolation
-          # Ignore duplicate student records.
-        end
+        Student.create(:id => student.bcp_id, :first_name => student.name[1], :last_name => student.name[0])
       end
       "Successfully imported #{Student.all.size} students."
     end
 
     get "/csv_report" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW_REPORT")
       content_type "text/csv"
 
       rows = []
@@ -265,7 +243,7 @@ module CheesyHours
     end
 
     get "/strike_report" do
-      halt(403, "Insufficient permissions.") unless @user_info["mentor"] == 1 || @user_info["leader"] == 1
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW_REPORT")
 
       @weeks = []
       start_time = Time.parse("2016-01-10 00:00:00 PST")
@@ -382,12 +360,12 @@ module CheesyHours
     end
 
     get "/tag/manage" do
-      halt(403, "Need to be an administrator.") unless (@user_info["administrator"] == true || @user_info["administrator"] == "1")
+      halt(403, "Need to be an administrator.") unless @user.has_permission?("HOURS_MANAGE_TAGS")
       erb :tag_manage_wizard
     end
 
     get "/tag/manage/assign" do
-      halt(403, "Need to be an administrator.") unless (@user_info["administrator"] == true || @user_info["administrator"] == "1")
+      halt(403, "Need to be an administrator.") unless @user.has_permission?("HOURS_MANAGE_TAGS")
 
       tag = Tag.first(:tag_id => params["tag"])
       if tag.nil?

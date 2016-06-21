@@ -1,25 +1,25 @@
 <h4>Currently signed in</h4>
 <table class="table table-striped table-bordered table-condensed">
   <tr>
-    <% if @user_info %>
+    <% if @user %>
       <th>Name</th>
     <% else %>
       <th>Student ID</th>
     <% end %>
     <th>Time In</th>
-    <% if @user_info && @user_info["mentor"] == 1 %>
+    <% if @user && @user.has_permission?("HOURS_EDIT") %>
       <th>Action</th>
     <% end %>
   </tr>
   <% @signed_in_sessions.sort_by { |session| session.student.last_name }.each do |session| %>
     <tr>
-      <% if @user_info %>
+      <% if @user %>
         <td><%= session.student.first_name %> <%= session.student.last_name %></td>
       <% else %>
         <td><%= session.student_id %></td>
       <% end %>
       <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
-      <% if @user_info && @user_info["mentor"] == 1 %>
+      <% if @user && @user.has_permission?("HOURS_EDIT") %>
         <td>
           <span style="white-space: nowrap;">
             <a href="/lab_sessions/<%= session.id %>/sign_out" class="btn btn-primary btn-small">Sign Out</a>
