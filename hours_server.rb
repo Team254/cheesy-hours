@@ -50,7 +50,7 @@ module CheesyHours
 
       # Restrict sign-ins to the NASA Lab's IP address ranges.
       unless SIGNIN_IP_WHITELIST.any? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
-        halt(400, "Invalid IP address. Must sign in from the BCP Robotics Lab.") unless @user.has_permission?("VEXHOURS_EDIT")
+        halt(400, "Invalid IP address. Must sign in from the Robotics Lab.") unless !@user.nil? && @user.has_permission?("VEXHOURS_EDIT")
       end
 
       # Check for existing open lab sessions.
