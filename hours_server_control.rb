@@ -9,7 +9,7 @@ require "pathological"
 require "thin"
 
 pwd = Dir.pwd
-Daemons.run_proc("hours_server", :monitor => true) do
+Daemons.run_proc("vex_hours_server", :monitor => true) do
   Dir.chdir(pwd)  # Fix working directory after daemons sets it to /.
   require "hours_server"
 
