@@ -3,11 +3,12 @@ set -e
 
 USER=team254
 HOST=ec2.team254.com
-APP=cheesy-hours
+APP=vex-hours
 SCRIPT_NAME=hours_server
+BRANCH=vex
 
-echo "Deploying $APP from Git master branch..."
+echo "Deploying $APP from Git $BRANCH branch..."
 echo
-ssh $USER@$HOST "cd /opt/sites/$APP && git checkout -f && git pull && bundle install && bundle exec rake db:migrate && bundle exec ruby ${SCRIPT_NAME}_control.rb restart"
+ssh $USER@$HOST "cd /opt/sites/$APP && git checkout -f && git pull origin $BRANCH && bundle install && bundle exec rake db:migrate && bundle exec ruby ${SCRIPT_NAME}_control.rb restart"
 echo
 echo "Deployed $APP."
