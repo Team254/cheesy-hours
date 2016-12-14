@@ -22,7 +22,7 @@
         <% if @user && @user.has_permission?("HOURS_VIEW_REPORT") %>
           <li><a href="/strike_report"><i class="icon-remove icon-black"></i> Strike Report</a></li>
         <% end %>
-        <% if @user && @user.has_permission?("HOURS_EDIT") %>
+        <% if false && @user && @user.has_permission?("HOURS_EDIT") %>
           <li><a href="/mentors"><i class="icon-user icon-black"></i> Manage Mentors</a></li>
         <% end %>
         <% if @user && @user.has_permission?("HOURS_MANAGE_TAGS") %>

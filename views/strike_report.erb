@@ -1,7 +1,7 @@
 <%= erb :header %>
 
 <div class="container">
-  <h2>Strike Report</h2>
+  <h2>VEX Strike Report</h2>
   <% @weeks.each do |week| %>
     <h3><%= week[:start].strftime("%Y-%m-%d") %> &ndash; <%= week[:end].strftime("%Y-%m-%d") %></h3>
     <table class="table table-striped table-bordered table-condensed">
