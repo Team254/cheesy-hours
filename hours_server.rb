@@ -26,7 +26,7 @@ module CheesyHours
         if @user.nil?
           unless (["/", "/signin", "/sms", "/tag/live", "/tag_ws"].include?(request.path) ||
               request.path.include?("tag/event"))
-            redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
+            redirect "#{CheesyCommon::Config.members_url}?site=vexhours&path=#{request.path}"
           end
         else
           session[:user] = @user
