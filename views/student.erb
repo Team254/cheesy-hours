@@ -1,7 +1,8 @@
+
 <%= erb :header %>
 
 <div class="container">
-    <% if @user.has_permission?("HOURS_EDIT") %>
+    <% if @user.has_permission?("VEXHOURS_EDIT") %>
       <div class="pull-right" style="margin-top: 20px;">
         <a href="/students/<%= @student.id %>/new_lab_session" class="btn btn-success btn-small">
           <i class="icon-white icon-file"></i> New Lab Session
@@ -16,7 +17,7 @@
         <th>Project Hours</th>
         <th>Signed Out By</th>
         <th>Notes</th>
-        <% if @user.has_permission?("HOURS_EDIT") %>
+        <% if @user.has_permission?("VEXHOURS_EDIT") %>
           <th>Action</th>
         <% end %>
       </tr>
@@ -30,7 +31,7 @@
           <td><%= session.mentor ? "#{session.mentor.first_name} #{session.mentor.last_name}" :
               session.mentor_name %></td>
           <td><%= session.notes %></td>
-          <% if @user.has_permission?("HOURS_EDIT") %>
+          <% if @user.has_permission?("VEXHOURS_EDIT") %>
             <td>
               <span style="white-space: nowrap;">
                 <a href="/lab_sessions/<%= session.id %>/edit" class="btn btn-primary btn-small">Edit</a>

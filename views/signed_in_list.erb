@@ -7,7 +7,7 @@
       <th>Student ID</th>
     <% end %>
     <th>Time In</th>
-    <% if @user && @user.has_permission?("HOURS_EDIT") %>
+    <% if @user && @user.has_permission?("VEXHOURS_EDIT") %>
       <th>Action</th>
     <% end %>
   </tr>
@@ -19,7 +19,7 @@
         <td><%= session.student_id %></td>
       <% end %>
       <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
-      <% if @user && @user.has_permission?("HOURS_EDIT") %>
+      <% if @user && @user.has_permission?("VEXHOURS_EDIT") %>
         <td>
           <span style="white-space: nowrap;">
             <a href="/lab_sessions/<%= session.id %>/sign_out" class="btn btn-primary btn-small">Sign Out</a>
