@@ -16,8 +16,6 @@ module CheesyHours
   class Server < Sinatra::Base
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
 
-    SIGNIN_IP_WHITELIST = ["64.62.178.135"]
-
     # Enforce authentication for all non-public routes.
     before do
       @user = session[:user]
@@ -45,11 +43,12 @@ module CheesyHours
     end
 
     post "/signin" do
-      @student = Student[params[:student_id]] || Student["21" + params[:student_id]]
+      @student = Student.get_by_id(params[:student_id])
       halt(400, "Invalid student.") if @student.nil?
 
-      # Restrict sign-ins to the NASA Lab's IP address ranges.
-      unless SIGNIN_IP_WHITELIST.any? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
+      # Restrict sign-ins to the lab's IP address ranges.
+      ip_whitelist = CheesyCommon::Config.signin_ip_whitelist
+      if !ip_whitelist.empty? && ip_whitelist.none? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
         halt(400, "Invalid IP address. Must sign in from the Robotics Lab.")
       end
 
@@ -199,7 +198,7 @@ module CheesyHours
       ids = params[:Body].split(" ")
       messages = ids.map do |id|
         # Retrieve the student record using the body of the message.
-        student = Student[id] || Student["21" + id]
+        student = Student.get_by_id(id)
         if student.nil?
           "Error: No matching student."
         else
