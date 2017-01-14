@@ -1,0 +1,16 @@
+.navbar-inner {
+	background: #3C67aD;
+	border: none;
+	padding: 6px 18px;
+	border-radius: 0;
+}
+
+.navbar .brand, .navbar .nav>li>a {
+	text-shadow: none;
+	color: #fff;
+}
+
+.navbar .nav li.dropdown>.dropdown-toggle .caret {
+	border-top-color: #fff;
+    border-bottom-color: #fff;
+}

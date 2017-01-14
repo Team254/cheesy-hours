@@ -17,23 +17,23 @@
     <div class="navbar-inner">
       <a class="brand" href="/">Cheesy Hours</a>
       <ul class="nav">
-        <li><a href="/leader_board"><i class="icon-th-list icon-black"></i> Leader Board</a></li>
-        <li><a href="/tag/live"><i class="icon-tag icon-black"></i> RFID Sign-in</a></li>
+        <li><a href="/leader_board"><i class="icon-th-list icon-white"></i> Leader Board</a></li>
+        <li><a href="/tag/live"><i class="icon-tag icon-white"></i> RFID Sign-in</a></li>
         <% if @user && @user.has_permission?("HOURS_VIEW_REPORT") %>
-          <li><a href="/strike_report"><i class="icon-remove icon-black"></i> Strike Report</a></li>
+          <li><a href="/strike_report"><i class="icon-remove icon-white"></i> Strike Report</a></li>
         <% end %>
         <% if @user && @user.has_permission?("HOURS_EDIT") %>
-          <li><a href="/mentors"><i class="icon-user icon-black"></i> Manage Mentors</a></li>
+          <li><a href="/mentors"><i class="icon-user icon-white"></i> Manage Mentors</a></li>
         <% end %>
         <% if @user && @user.has_permission?("HOURS_MANAGE_TAGS") %>
-                <li><a href="/tag/manage"><i class="icon-tag icon-black"></i> Manage Tags</a></li>
+                <li><a href="/tag/manage"><i class="icon-tag icon-white"></i> Manage Tags</a></li>
         <% end %>
       </ul>
       <div class="pull-right">
         <ul class="nav pull-right">
           <% if @user %>
             <li class="dropdown">
-              <a href="#" class="dropdown-toggle" data-toggle="dropdown"> <i class="icon-user"></i>
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown"> <i class="icon-user icon-white"></i>
                 <%= @user.name_display %> <b class="caret"></b></a>
               <ul class="dropdown-menu">
                 <li>
