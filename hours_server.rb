@@ -113,7 +113,7 @@ module CheesyHours
     end
 
     get "/lab_sessions/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_DELETE")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @referrer = request.referrer
@@ -121,7 +121,7 @@ module CheesyHours
     end
 
     post "/lab_sessions/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_DELETE")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @lab_session.delete
