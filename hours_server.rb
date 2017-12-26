@@ -218,7 +218,7 @@ module CheesyHours
     end
 
     get "/reindex_students" do
-      unless @user.has_permission?("VEXHOURS_EDIT")
+      unless @user.has_permission?("DATABASE_ADMIN")
         halt(400, "Need to be an administrator.")
       end
 
