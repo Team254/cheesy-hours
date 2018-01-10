@@ -392,6 +392,15 @@ module CheesyHours
     get "/tag/live" do
       erb :live_tag_view
     end
+    
+    get "/reset_hours" do
+      unless @user.has_permission?("DATABASE_ADMIN")
+        halt(400, "Need to be an administrator.")
+      end
+
+      DB[:lab_sessions].where(Sequel[:time_out] < DateTime.new(2018, 1, 6.0)).delete
+      "Reset Hours"
+    end
 
     def send_ws_msg(msg)
       EM.next_tick { settings.sockets.each { |s| s.send(msg.to_json) } }
