@@ -8,7 +8,6 @@ class LabSession < Sequel::Model
   many_to_one :mentor
 
   def duration_hours
-    0
-    # time_out.nil? ? 0 : (time_out - time_in) / 3600
+    time_out.nil? ? 0 : (time_out - time_in) / 3600
   end
 end
