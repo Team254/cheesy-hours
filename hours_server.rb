@@ -239,22 +239,6 @@ module CheesyHours
       rows.join("\n")
     end
 
-    get "/strike_report" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW_REPORT")
-
-      @weeks = []
-      start_time = Time.parse("2016-01-10 00:00:00 PST")
-      begin
-        week = { :start => start_time }
-        start_time += 86400 * 7
-        week[:end] = start_time
-        @weeks << week
-      end while start_time < Time.now
-      @min_hours = 5
-
-      erb :strike_report
-    end
-
     def sms_response(messages)
       <<-END
         <Response>

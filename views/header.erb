@@ -18,9 +18,6 @@
       <a class="brand" href="/">Cheesy Hours</a>
       <ul class="nav">
         <li><a href="/leader_board"><i class="icon-th-list icon-white"></i> Leader Board</a></li>
-        <% if @user && @user.has_permission?("HOURS_VIEW_REPORT") %>
-          <li><a href="/strike_report"><i class="icon-remove icon-white"></i> Strike Report</a></li>
-        <% end %>
         <% if @user && @user.has_permission?("HOURS_EDIT") %>
           <li><a href="/mentors"><i class="icon-user icon-white"></i> Manage Mentors</a></li>
         <% end %>
