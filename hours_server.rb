@@ -8,7 +8,6 @@ require "cgi"
 require "cheesy-common"
 require "pathological"
 require "sinatra/base"
-require "sinatra-websocket"
 
 require "models"
 
@@ -16,16 +15,13 @@ module CheesyHours
   class Server < Sinatra::Base
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
 
-    SIGNIN_IP_WHITELIST = ["64.62.178.135"]
-
     # Enforce authentication for all non-public routes.
     before do
       @user = session[:user]
       if @user.nil?
         @user = CheesyCommon::Auth.get_user(request)
         if @user.nil?
-          unless (["/", "/signin", "/sms", "/tag/live", "/tag_ws"].include?(request.path) ||
-              request.path.include?("tag/event"))
+          unless ["/", "/signin", "/sms"].include?(request.path)
             redirect "#{CheesyCommon::Config.members_url}?site=vexhours&path=#{request.path}"
           end
         else
@@ -45,12 +41,13 @@ module CheesyHours
     end
 
     post "/signin" do
-      @student = Student[params[:student_id]] || Student["21" + params[:student_id]]
+      @student = Student.get_by_id(params[:student_id])
       halt(400, "Invalid student.") if @student.nil?
 
-      # Restrict sign-ins to the NASA Lab's IP address ranges.
-      unless SIGNIN_IP_WHITELIST.any? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
-        halt(400, "Invalid IP address. Must sign in from the Robotics Lab.") unless !@user.nil? && @user.has_permission?("VEXHOURS_EDIT")
+      # Restrict sign-ins to the lab's IP address ranges.
+      ip_whitelist = CheesyCommon::Config.signin_ip_whitelist
+      if !ip_whitelist.empty? && ip_whitelist.none? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
+        halt(400, "Invalid IP address. Must sign in from the Robotics Lab.")
       end
 
       # Check for existing open lab sessions.
@@ -199,7 +196,7 @@ module CheesyHours
       ids = params[:Body].split(" ")
       messages = ids.map do |id|
         # Retrieve the student record using the body of the message.
-        student = Student[id] || Student["21" + id]
+        student = Student.get_by_id(id)
         if student.nil?
           "Error: No matching student."
         else
@@ -242,175 +239,12 @@ module CheesyHours
       rows.join("\n")
     end
 
-    get "/strike_report" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW_REPORT")
-
-      @weeks = []
-      start_time = Time.parse("2016-01-10 00:00:00 PST")
-      begin
-        week = { :start => start_time }
-        start_time += 86400 * 7
-        week[:end] = start_time
-        @weeks << week
-      end while start_time < Time.now
-      @min_hours = 5
-
-      erb :strike_report
-    end
-
     def sms_response(messages)
       <<-END
         <Response>
           <Sms>#{messages.join("</Sms><Sms>")}</Sms>
         </Response>
       END
-    end
-
-    # RFID tag management.
-    set :sockets, []
-    @@current_rfid_mentors = []
-    @@current_rfid_students = []
-    @@tags = Hash.new
-
-    get "/tag_ws" do
-      if !request.websocket?
-        @signed_in_sessions = LabSession.where(:time_out => nil)
-        erb :index
-      end
-
-      request.websocket do |ws|
-        ws.onopen do
-          ws.send({ :status => "Connection Opened" }.to_json)
-          @@tags.each do |tag|
-            send_ws_msg(:user => tag[1][:user], :state => "in", :tag => tag[1][:tag_id])
-          end
-          settings.sockets << ws
-        end
-
-        ws.onclose do
-          ws.send({ :status => "Connection Closed" }.to_json)
-          settings.sockets.delete(ws)
-        end
-      end
-    end
-
-    get "/tag/events/in/:id" do
-      user = get_user_by_tag(params[:id])
-      if user.nil?
-        @@tags[params[:id].to_s] = { :type => :unassigned, :tag_id => params[:id] }
-      elsif user[:type] == :student
-        @@tags[params[:id].to_s] = user
-        @@current_rfid_students.push(params[:id].to_s)
-        student = user[:user]
-
-        if @@current_rfid_mentors.empty?
-          # No mentor tag present, must be sign in.
-          unless LabSession.where(:student_id => student.id, :time_out => nil).empty?
-            send_ws_msg(:signin => "Error: #{student.first_name} is already signed in.")
-          else
-            #check for debouncing: allow sign in only 1 minute after sign out
-            if (((Time.now - student.lab_sessions.last.time_out)/60) > 1)
-              student.add_lab_session(:time_in => Time.now)
-              send_ws_msg(:signin => "Signed in #{student.first_name} #{student.last_name}!")
-            end
-            
-          end
-        else
-          #mentor present, must be sign out
-          lab_session = student.lab_sessions.select { |session| session.time_out.nil? }.first
-          if lab_session.nil?
-            send_ws_msg(:signin => "Error: #{student.first_name} #{student.last_name} is not signed in.")
-          else
-            mentor = Mentor[Tag.first(:tag_id => @@current_rfid_mentors[0]).mentor_id]
-            lab_session.update(:time_out => Time.now, :mentor_id => mentor.id)
-            send_ws_msg(:signin => "#{student.first_name} #{student.last_name} signed out after " +
-                "#{lab_session.duration_hours.round(1)} hours by #{mentor.first_name} #{mentor.last_name}")
-          end
-        end
-      elsif user[:type] == :mentor
-        mentor = user[:user]
-        @@tags[params[:id].to_s] = user
-        @@current_rfid_mentors.push(params[:id].to_s)
-      end
-
-      send_ws_msg(:user => user, :state => "in", :tag => params[:id])
-    end
-
-    get "/tag/events/out/:id" do
-      tag = Tag.first(:tag_id => params[:id])
-      @@tags.delete(params[:id])
-
-      #cache any error for halting after the websocket sends it's message
-      error = nil
-      if tag.nil?
-        error = "No such tag."
-      elsif !tag.student_id.nil?
-        @@current_rfid_students.delete(params[:id].to_s)
-      elsif !tag.mentor_id.nil?
-        @@current_rfid_mentors.delete(params[:id].to_s)
-      else
-        error = "Tag does not reference a student or mentor."
-      end
-
-      #Needs to execute for wizard to work
-      send_ws_msg(:user => get_user_by_tag(params[:id]), :state => "out", :tag => params[:id])
-
-      #Now check for error
-      halt(400, error) unless (error == nil)
-    end
-
-    get "/tag/manage" do
-      halt(403, "Need to be an administrator.") unless @user.has_permission?("HOURS_MANAGE_TAGS")
-      erb :tag_manage_wizard
-    end
-
-    get "/tag/manage/assign" do
-      halt(403, "Need to be an administrator.") unless @user.has_permission?("HOURS_MANAGE_TAGS")
-
-      tag = Tag.first(:tag_id => params["tag"])
-      if tag.nil?
-        if params["mode"] == "student"
-          Tag.insert(:student_id => params["id"], :tag_id => params["tag"])
-        elsif params["mode"] == "mentor"
-          Tag.insert(:mentor_id => params["id"], :tag_id => params["tag"])
-        else
-          halt(400, "Parameter 'mode' is missing.")
-        end
-      else 
-        if params["mode"] == "student"
-          tag.student_id = params["id"].to_i
-          tag.mentor_id = nil
-        elsif params["mode"] == "mentor"
-          tag.mentor_id = params["id"].to_i
-          tag.student_id = nil
-        else
-          halt(400, "Parameter 'mode' is missing.")
-        end
-        tag.save
-      end
-    end
-
-    get "/tag/live" do
-      erb :live_tag_view
-    end
-
-    def send_ws_msg(msg)
-      EM.next_tick { settings.sockets.each { |s| s.send(msg.to_json) } }
-    end
-
-    def get_user_by_tag(tag_id)
-      tag = Tag.first(:tag_id => tag_id)
-      return nil if tag.nil?
-
-      if !tag.student_id.nil?
-        student = Student[tag.student_id]
-        return { :type => :student, :user => student, :name => "#{student.first_name} #{student.last_name}", :tag_id => tag.id }
-      elsif !tag.mentor_id.nil?
-        mentor = Mentor[tag.mentor_id]
-        return { :type => :mentor, :user => mentor, :name => "#{mentor.first_name} #{mentor.last_name}", :tag_id => tag.id }
-      end
-
-      raise "Tag does not reference a student or mentor."
     end
   end
 end

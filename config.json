@@ -7,10 +7,12 @@
   },
   "dev": {
     "db_password": "correcthorsebatterystaple",
-    "members_url": "http://members.team254.dev:8081"
+    "members_url": "http://members.team254.dev:8081",
+    "signin_ip_whitelist": []
   },
   "prod": {
     "db_password": "Encrypted:0iYLP6HuJ7qY1/BtUYAQ+Q==\n",
-    "members_url": "https://members.team254.com"
+    "members_url": "https://members.team254.com",
+    "signin_ip_whitelist": ["64.62.178.135"]
   }
 }
