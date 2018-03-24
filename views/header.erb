@@ -17,16 +17,16 @@
     <div class="navbar-inner">
       <a class="brand" href="/">Cheesy VEX Hours</a>
       <ul class="nav">
-        <li><a href="/leader_board"><i class="icon-th-list icon-black"></i> Leader Board</a></li>
+        <li><a href="/leader_board"><i class="icon-th-list icon-white"></i> Leader Board</a></li>
         <% if false && @user && @user.has_permission?("VEXHOURS_EDIT") %>
-          <li><a href="/mentors"><i class="icon-user icon-black"></i> Manage Mentors</a></li>
+          <li><a href="/mentors"><i class="icon-user icon-white"></i> Manage Mentors</a></li>
         <% end %>
       </ul>
       <div class="pull-right">
         <ul class="nav pull-right">
           <% if @user %>
             <li class="dropdown">
-              <a href="#" class="dropdown-toggle" data-toggle="dropdown"> <i class="icon-user"></i>
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown"> <i class="icon-user icon-white"></i>
                 <%= @user.name_display %> <b class="caret"></b></a>
               <ul class="dropdown-menu">
                 <li>
