@@ -17,16 +17,14 @@ module CheesyHours
 
     # Enforce authentication for all non-public routes.
     before do
-      @user = session[:user]
+      @user = CheesyCommon::Auth.get_user(request)
       if @user.nil?
-        @user = CheesyCommon::Auth.get_user(request)
-        if @user.nil?
-          unless ["/", "/signin", "/sms"].include?(request.path)
-            redirect "#{CheesyCommon::Config.members_url}?site=vexhours&path=#{request.path}"
-          end
-        else
-          session[:user] = @user
+        session[:user] = nil
+        unless ["/", "/signin", "/sms"].include?(request.path)
+          redirect "#{CheesyCommon::Config.members_url}?site=vexhours&path=#{request.path}"
         end
+      else
+          session[:user] = @user
       end
     end
 
