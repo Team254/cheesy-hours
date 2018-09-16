@@ -30,4 +30,10 @@ class Student < Sequel::Model
       sum + session.duration_hours
     end
   end
+
+  def total_sessions_attended
+    lab_sessions.reject { |session| session.time_out.nil? }.inject(0) do |sum, session|
+      sum + 1
+    end
+  end
 end
