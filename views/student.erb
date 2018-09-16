@@ -22,7 +22,7 @@
       </tr>
       <% @student.lab_sessions.sort_by(&:id).each do |session| %>
         <tr>
-          <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
+          <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %></td>
           <td>
             <%= session.time_out.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %>
           </td>
