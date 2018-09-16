@@ -230,9 +230,9 @@ module CheesyHours
       content_type "text/csv"
 
       rows = []
-      rows << ["Last Name", "First Name", "Student ID", "Project Hours"].join(",")
+      rows << ["Last Name", "First Name", "Student ID", "Project Hours", "Total # of Sign Outs"].join(",")
       Student.order_by(:last_name).each do |student|
-        rows << [student.last_name, student.first_name, student.id, student.project_hours].join(",")
+        rows << [student.last_name, student.first_name, student.id, student.project_hours, student.total_sessions_attended].join(",")
       end
       rows.join("\n")
     end
