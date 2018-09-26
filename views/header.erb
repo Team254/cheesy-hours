@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Cheesy Hours</title>
+  <title>Cheesy Nontech Hours</title>
   <link rel="shortcut icon" href="//media.team254.com/homepage/icons/favicon32.png">
   <link rel="apple-touch-icon" sizes="114x114" href="http://media.team254.com/homepage/icons/apple-touch-icon-114x114.png">
   <link rel="apple-touch-icon" sizes="72x72" href="http://media.team254.com/homepage/icons/apple-touch-icon-72x72.png">
@@ -15,10 +15,10 @@
 <body>
   <div class="navbar">
     <div class="navbar-inner">
-      <a class="brand" href="/">Cheesy Hours</a>
+      <a class="brand" href="/">Cheesy Nontech Hours</a>
       <ul class="nav">
         <li><a href="/leader_board"><i class="icon-th-list icon-white"></i> Leader Board</a></li>
-        <% if @user && @user.has_permission?("HOURS_EDIT") %>
+        <% if @user && @user.has_permission?("NONTECH_HOURS_EDIT") %>
           <li><a href="/mentors"><i class="icon-user icon-white"></i> Manage Mentors</a></li>
         <% end %>
       </ul>

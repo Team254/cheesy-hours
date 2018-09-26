@@ -21,7 +21,7 @@ module CheesyHours
       if @user.nil?
         session[:user] = nil
         unless ["/", "/signin", "/sms"].include?(request.path)
-          redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
+          redirect "#{CheesyCommon::Config.members_url}?site=nontechhours&path=#{request.path}"
         end
       else
           session[:user] = @user
@@ -68,14 +68,14 @@ module CheesyHours
     end
 
     get "/students/:id/new_lab_session" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
       erb :edit_lab_session
     end
 
     post "/students/:id/new_lab_session" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
       student.add_lab_session(:time_in => params[:time_in], :time_out => params[:time_out],
@@ -85,7 +85,7 @@ module CheesyHours
     end
 
     get "/lab_sessions/:id/edit" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @referrer = request.referrer
@@ -93,7 +93,7 @@ module CheesyHours
     end
 
     post "/lab_sessions/:id/edit" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       if !params[:time_out].empty? && @lab_session.time_out.nil?
@@ -109,7 +109,7 @@ module CheesyHours
     end
 
     get "/lab_sessions/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_DELETE")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_DELETE")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @referrer = request.referrer
@@ -117,7 +117,7 @@ module CheesyHours
     end
 
     post "/lab_sessions/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_DELETE")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_DELETE")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @lab_session.delete
@@ -125,7 +125,7 @@ module CheesyHours
     end
 
     get "/lab_sessions/:id/sign_out" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if lab_session.nil?
       lab_session.update(:time_out => Time.now, :mentor_name => @user.name_display)
@@ -138,17 +138,17 @@ module CheesyHours
     end
 
     get "/new_mentor" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       erb :new_mentor
     end
 
     get "/mentors" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       erb :mentors
     end
 
     post "/mentors" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       halt(400, "Missing first name.") if params[:first_name].nil? || params[:first_name].empty?
       halt(400, "Missing last name.") if params[:last_name].nil? || params[:last_name].empty?
       halt(400, "Missing phone number.") if params[:phone_number].nil? || params[:phone_number].empty?
@@ -158,14 +158,14 @@ module CheesyHours
     end
 
     get "/mentors/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       @mentor = Mentor[params[:id]]
       halt(400, "Invalid mentor.") if @mentor.nil?
       erb :delete_mentor
     end
 
     post "/mentors/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       @mentor = Mentor[params[:id]]
       halt(400, "Invalid mentor.") if @mentor.nil?
       @mentor.delete
@@ -217,7 +217,7 @@ module CheesyHours
         halt(400, "Need to be an administrator.")
       end
 
-      students = CheesyCommon::Auth.find_users_with_permission("HOURS_SIGN_IN")
+      students = CheesyCommon::Auth.find_users_with_permission("NONTECH_HOURS_SIGN_IN")
       Student.truncate
       students.each do |student|
         Student.create(:id => student.bcp_id, :first_name => student.name[1], :last_name => student.name[0])
@@ -226,7 +226,7 @@ module CheesyHours
     end
 
     get "/csv_report" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW_REPORT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_VIEW_REPORT")
       content_type "text/csv"
 
       rows = []

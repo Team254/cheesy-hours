@@ -7,7 +7,7 @@
       <th>Student ID</th>
     <% end %>
     <th>Time In</th>
-    <% if @user && @user.has_permission?("HOURS_EDIT") %>
+    <% if @user && @user.has_permission?("NONTECH_HOURS_EDIT") %>
       <th>Action</th>
     <% end %>
   </tr>
@@ -19,14 +19,14 @@
         <td><%= session.student_id %></td>
       <% end %>
       <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
-      <% if @user && (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("HOURS_DELETE")) %>
+      <% if @user && (@user.has_permission?("NONTECH_HOURS_EDIT") || @user.has_permission?("NONTECH_HOURS_DELETE")) %>
         <td>
-          <% if @user.has_permission?("HOURS_EDIT") %>
+          <% if @user.has_permission?("NONTECH_HOURS_EDIT") %>
             <span style="white-space: nowrap;">
               <a href="/lab_sessions/<%= session.id %>/sign_out" class="btn btn-primary btn-small">Sign Out</a>
             </span>
           <% end %>
-          <% if @user.has_permission?("HOURS_DELETE") %>
+          <% if @user.has_permission?("NONTECH_HOURS_DELETE") %>
             <span style="white-space: nowrap;">
               <a href="/lab_sessions/<%= session.id %>/delete" class="btn btn-danger btn-small">Delete</a>
             </span>

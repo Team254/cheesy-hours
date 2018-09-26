@@ -3,7 +3,7 @@ set -e
 
 USER=team254
 HOST=ec2.team254.com
-APP=cheesy-hours
+APP=nontech-hours
 SCRIPT_NAME=hours_server
 
 echo "Deploying $APP from Git master branch..."
