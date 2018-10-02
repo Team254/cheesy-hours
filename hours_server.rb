@@ -21,7 +21,7 @@ module CheesyHours
       if @user.nil?
         session[:user] = nil
         unless ["/", "/signin", "/sms"].include?(request.path)
-          redirect "#{CheesyCommon::Config.members_url}?site=nontechhours&path=#{request.path}"
+          redirect "#{CheesyCommon::Config.members_url}?site=nontech-hours&path=#{request.path}"
         end
       else
           session[:user] = @user
@@ -109,7 +109,7 @@ module CheesyHours
     end
 
     get "/lab_sessions/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_DELETE")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @referrer = request.referrer
@@ -117,7 +117,7 @@ module CheesyHours
     end
 
     post "/lab_sessions/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_DELETE")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @lab_session.delete
@@ -217,7 +217,7 @@ module CheesyHours
         halt(400, "Need to be an administrator.")
       end
 
-      students = CheesyCommon::Auth.find_users_with_permission("NONTECH_HOURS_SIGN_IN")
+      students = CheesyCommon::Auth.find_users_with_permission("HOURS_SIGN_IN")
       Student.truncate
       students.each do |student|
         Student.create(:id => student.bcp_id, :first_name => student.name[1], :last_name => student.name[0])
@@ -226,7 +226,7 @@ module CheesyHours
     end
 
     get "/csv_report" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_VIEW_REPORT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW_REPORT")
       content_type "text/csv"
 
       rows = []
