@@ -137,81 +137,6 @@ module CheesyHours
       erb :signed_in_list
     end
 
-    get "/new_mentor" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
-      erb :new_mentor
-    end
-
-    get "/mentors" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
-      erb :mentors
-    end
-
-    post "/mentors" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
-      halt(400, "Missing first name.") if params[:first_name].nil? || params[:first_name].empty?
-      halt(400, "Missing last name.") if params[:last_name].nil? || params[:last_name].empty?
-      halt(400, "Missing phone number.") if params[:phone_number].nil? || params[:phone_number].empty?
-      Mentor.create(:first_name => params[:first_name], :last_name => params[:last_name],
-                    :phone_number => params[:phone_number].gsub(/[^\d]/, "")[-10..-1])
-      redirect "/mentors"
-    end
-
-    get "/mentors/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
-      @mentor = Mentor[params[:id]]
-      halt(400, "Invalid mentor.") if @mentor.nil?
-      erb :delete_mentor
-    end
-
-    post "/mentors/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("NONTECH_HOURS_EDIT")
-      @mentor = Mentor[params[:id]]
-      halt(400, "Invalid mentor.") if @mentor.nil?
-      @mentor.delete
-      redirect "/mentors"
-    end
-
-    # Receives all SMS messages via Twilio.
-    post "/sms" do
-      content_type "application/xml"
-
-      # Retrieve the mentor record using the sender phone number.
-      phone_number = params[:From].gsub(/[^\d]/, "")[-10..-1]
-      mentor = Mentor.where(:phone_number => phone_number).first
-      halt(200, sms_response(["Error: Don't recognize sender's phone number."])) if mentor.nil?
-
-      # First check for special control messages.
-      if params[:Body].downcase == "gtfo"
-        # Sign everyone out all at once.
-        LabSession.where(:time_out => nil).each do |lab_session|
-          lab_session.update(:time_out => Time.now, :mentor => mentor)
-        end
-        halt(200, sms_response(["All students signed out."]))
-      end
-
-      # Next, check for multiple IDs in the message.
-      ids = params[:Body].split(" ")
-      messages = ids.map do |id|
-        # Retrieve the student record using the body of the message.
-        student = Student.get_by_id(id)
-        if student.nil?
-          "Error: No matching student."
-        else
-          # Find the open lab session and sign it out.
-          lab_session = student.lab_sessions.select { |session| session.time_out.nil? }.first
-          if lab_session.nil?
-            "Error: #{student.first_name} #{student.last_name} is not signed in."
-          else
-            lab_session.update(:time_out => Time.now, :mentor => mentor)
-            "#{student.first_name} #{student.last_name} signed out after " +
-                "#{lab_session.duration_hours.round(1)} hours."
-          end
-        end
-      end
-      halt(200, sms_response(messages))
-    end
-
     get "/reindex_students" do
       unless @user.has_permission?("DATABASE_ADMIN")
         halt(400, "Need to be an administrator.")
@@ -235,23 +160,6 @@ module CheesyHours
         rows << [student.last_name, student.first_name, student.id, student.project_hours, student.total_sessions_attended].join(",")
       end
       rows.join("\n")
-    end
-
-    def sms_response(messages)
-      <<-END
-        <Response>
-          <Sms>#{messages.join("</Sms><Sms>")}</Sms>
-        </Response>
-      END
-    end
-
-    get "/reset_hours" do
-      unless @user.has_permission?("DATABASE_ADMIN")
-        halt(400, "Need to be an administrator.")
-      end
-
-      DB[:lab_sessions].where(Sequel[:time_out] < DateTime.new(2018, 1, 6.0)).delete
-      "Reset Hours"
     end
   end
 end
