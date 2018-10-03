@@ -1,0 +1,18 @@
+<%= erb :header %>
+
+<div class="container">
+  <h2>Add Mentor</h2>
+  <form action="/mentors" method="POST">
+    <label>First Name</label>
+    <input type="text" name="first_name" />
+    <label>Last Name</label>
+    <input type="text" name="last_name" />
+    <label>Phone Number</label>
+    <input type="text" name="phone_number" />
+    <label>
+      <input type="submit" class="btn btn-success btn-medium" value="Save"/>
+    </label>
+  </form>
+</div>
+
+<%= erb :footer %>
