@@ -27,8 +27,8 @@ GEM
     multi_xml (0.5.5)
     mysql2 (0.4.2)
     pathological (0.3.0)
-    rack (1.6.4)
-    rack-protection (1.5.3)
+    rack (1.6.12)
+    rack-protection (1.5.5)
       rack
     rake (10.5.0)
     sequel (4.30.0)
