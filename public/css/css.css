@@ -20,6 +20,7 @@ body {
 	margin-top: 5px;
 	text-shadow: none;
 	color: #8f9bb3;
+	padding: 10px, 10px, 10px;
 }
 
 .navbar .nav li.dropdown>.dropdown-toggle .caret {
@@ -28,7 +29,7 @@ body {
 }
 
 #logo {
-	margin: 5px 0 10px 30px;
+	margin: 5px;
 	height: 40px;
 	width: 70px;
 	display: block;
