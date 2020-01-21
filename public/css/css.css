@@ -53,3 +53,16 @@ body {
     outline: none;
     border: 2px solid #e8ecf4;
 }
+
+#scanSubmit {
+	color: #2d3448;
+	text-shadow: 0 -1px 0 rgba(0,0,0,0.25);
+	text-shadow: none;
+    outline: none;
+    background-image: none;
+    border: solid 2px #0070ff;
+    box-shadow: none;
+    color: #0070FF;
+    background: transparent;
+
+}
