@@ -55,8 +55,6 @@ body {
 }
 
 #scanSubmit {
-	color: #2d3448;
-	text-shadow: 0 -1px 0 rgba(0,0,0,0.25);
 	text-shadow: none;
 	outline: none;
 	background-image: none;
@@ -64,5 +62,14 @@ body {
     box-shadow: none;
     color: #0070FF;
     background: transparent;
+}
 
+.btn-danger {
+	text-shadow: none;
+	outline: none;
+	background-image: none;
+	border: solid 2px #da4f49;
+	box-shadow: none;
+	color: #da4f49;
+	background: transparent;
 }
