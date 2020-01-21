@@ -27,4 +27,8 @@ body {
 #logo {
 	margin: 15px 10px 15px 30px;
 	height: 40px;
+	width: 70px;
+	display: block;
+    float: left;
+    margin-right: 20px;
 }
