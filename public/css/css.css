@@ -73,3 +73,14 @@ body {
 	color: #da4f49;
 	background: transparent;
 }
+
+.btn-primary {
+	text-shadow: none;
+	outline: none;
+	background-image: none;
+	border: solid 2px #0070ff;
+    box-shadow: none;
+    color: #0070FF;
+    background: transparent;
+}
+
