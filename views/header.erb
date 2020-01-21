@@ -15,11 +15,15 @@
 <body>
   <div class="navbar">
     <div class="navbar-inner">
+      <img
+        id="logo"
+        src="./imgs/Compressed-254-Swoosh.png"
+      >
       <a class="brand" href="/">Cheesy Hours</a>
       <ul class="nav">
-        <li><a href="/leader_board"><i class="icon-th-list icon-white"></i> Leader Board</a></li>
+        <li><a href="/leader_board"></i> Leader Board</a></li>
         <% if @user && @user.has_permission?("HOURS_EDIT") %>
-          <li><a href="/mentors"><i class="icon-user icon-white"></i> Manage Mentors</a></li>
+          <li><a href="/mentors">Manage Mentors</a></li>
         <% end %>
       </ul>
       <div class="pull-right">

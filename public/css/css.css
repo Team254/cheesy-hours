@@ -1,16 +1,30 @@
+@import url('https://fonts.googleapis.com/css?family=Open+Sans&display=swap');
+
+body {
+	font-family: "Open Sans",AvenirNext-DemiBold,sans-serif;
+	font-size: 16px;
+}
+
 .navbar-inner {
-	background: #3C67aD;
+	background: #fff;
 	border: none;
 	padding: 6px 18px;
 	border-radius: 0;
+	height: 50px;
 }
 
 .navbar .brand, .navbar .nav>li>a {
+	margin-top: 5px;
 	text-shadow: none;
-	color: #fff;
+	color: #8f9bb3;
 }
 
 .navbar .nav li.dropdown>.dropdown-toggle .caret {
-	border-top-color: #fff;
-    border-bottom-color: #fff;
+	border-top-color: #8f9bb3;
+    border-bottom-color: #8f9bb3;
+}
+
+#logo {
+	margin: 15px 10px 15px 30px;
+	height: 40px;
 }
