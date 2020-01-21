@@ -19,7 +19,8 @@ body {
 .navbar .brand, .navbar .nav>li>a {
 	margin-top: 5px;
 	text-shadow: none;
-	color: #8f9bb3;
+  color: #8f9bb3;
+  margin-left: 0;
 }
 
 .navbar .nav li.dropdown>.dropdown-toggle .caret {
