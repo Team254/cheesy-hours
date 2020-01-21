@@ -46,3 +46,10 @@ body {
 .table {
 	background: white;
 }
+
+#student_id {
+	padding: 10px;
+    border-radius: 5px;
+    outline: none;
+    border: 2px solid #e8ecf4;
+}
