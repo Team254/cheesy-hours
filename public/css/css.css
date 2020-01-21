@@ -34,7 +34,7 @@ body {
 }
 
 .brand {
-	color: #2d3448;
-	font-weight: bold;
-	font-size: 24px;
+	color: #2d3448 !important;
+	font-weight: bold !important;
+	font-size: 24px !important;
 }
