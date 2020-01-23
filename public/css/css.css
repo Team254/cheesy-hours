@@ -84,3 +84,12 @@ body {
     background: transparent;
 }
 
+@media only screen and (max-width: 1000px) {
+	.container {
+		margin: 0 20px;
+	}
+
+	.table {
+		width: calc(100vw - 40px);
+	}
+}
