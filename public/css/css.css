@@ -58,10 +58,15 @@ body {
 	text-shadow: none;
 	outline: none;
 	background-image: none;
-	border: solid 2px #0070ff;
-    box-shadow: none;
-    color: #0070FF;
-    background: transparent;
+	border: none;
+  box-shadow: none;
+  box-sizing: border-box;
+  width: 150px;
+  height: 40px;
+  font-size: 18px;
+  border: solid 2px #0070ff;
+  color: #0070FF;
+  background: transparent;
 }
 
 .btn-danger {
