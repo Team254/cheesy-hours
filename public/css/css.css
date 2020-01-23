@@ -21,6 +21,7 @@ body {
 	text-shadow: none;
 	padding: 10px, 10px, 10px;
 	color: #8f9bb3;
+	font-weight: bold !important;
 }
 
 .navbar .nav li.dropdown>.dropdown-toggle .caret {
@@ -59,14 +60,14 @@ body {
 	outline: none;
 	background-image: none;
 	border: none;
-  box-shadow: none;
-  box-sizing: border-box;
-  width: 150px;
-  height: 40px;
-  font-size: 18px;
-  border: solid 2px #0070ff;
-  color: #0070FF;
-  background: transparent;
+  	box-shadow: none;
+  	box-sizing: border-box;
+  	width: 150px;
+  	height: 40px;
+	font-size: 18px;
+	border: solid 2px #0070ff;
+	color: #0070FF;
+	background: transparent;
 }
 
 .btn-danger {
