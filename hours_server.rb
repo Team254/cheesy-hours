@@ -21,7 +21,7 @@ module CheesyHours
       if @user.nil?
         session[:user] = nil
         # Note: signin_internal blocks all outside sources (localhost only)
-        unless ["/", "/signin", "/sms", "/signin_internal"].include?(request.path)
+        unless ["/", "/sms", "/signin_internal"].include?(request.path)
           redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
         end
       else
@@ -40,6 +40,8 @@ module CheesyHours
     end
 
     post "/signin" do
+      halt(403, "Insufficient permissions. If you're a student, please sign in on Events.") unless @user.has_permission?("HOURS_SIGN_IN")
+
       @student = Student.get_by_id(params[:student_id])
       halt(400, "Invalid student.") if @student.nil?
 
