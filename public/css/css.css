@@ -99,4 +99,8 @@ body {
 	.table {
 		width: calc(100vw - 40px);
 	}
+
+	#scanSubmit {
+		width: 100%;
+	}
 }
