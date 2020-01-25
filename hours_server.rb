@@ -20,7 +20,8 @@ module CheesyHours
       @user = CheesyCommon::Auth.get_user(request)
       if @user.nil?
         session[:user] = nil
-        unless ["/", "/signin", "/sms"].include?(request.path)
+        # Note: signin_internal blocks all outside sources (localhost only)
+        unless ["/", "/signin", "/sms", "/signin_internal"].include?(request.path)
           redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
         end
       else
@@ -55,6 +56,19 @@ module CheesyHours
       @student.add_lab_session(:time_in => Time.now)
 
       redirect "/"
+    end
+
+    post "/signin_internal" do
+      @student = Student.get_by_id(params[:student_id])
+      halt(400, "Invalid student.") if @student.nil?
+
+      # Check for existing open lab sessions.
+      unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
+        halt(400, "An open lab session already exists for student #{@student.id}.")
+      end
+      @student.add_lab_session(:time_in => Time.now)
+
+      "Success"
     end
 
     get "/leader_board" do
