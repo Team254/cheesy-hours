@@ -1,16 +1,18 @@
 <%= erb :header %>
 
 <div class="container">
-  <% if @user.has_permission?("HOURS_SIGN_IN") %>
-    <div class="row">
-      <div class="span6">
-        <h2>Sign in</h2>
+  <% if @user %>
+    <% if @user.has_permission?("HOURS_SIGN_IN") %>
+      <div class="row">
+        <div class="span6">
+          <h2>Sign in</h2>
+        </div>
       </div>
-    </div>
-    <form action="/signin" method="POST">
-      <p><input class="form-control input-lg" name="student_id" placeholder="Student ID" id="student_id" autofocus></p>
-      <button type="submit" class="btn btn-success btn-lg" id="scanSubmit">Sign in</button>
-    </form>
+      <form action="/signin" method="POST">
+        <p><input class="form-control input-lg" name="student_id" placeholder="Student ID" id="student_id" autofocus></p>
+        <button type="submit" class="btn btn-success btn-lg" id="scanSubmit">Sign in</button>
+      </form>
+    <% end %>
   <% end %>
   <div id="signed-in-list" class="col-lg-4">
     <%= erb :signed_in_list %>
