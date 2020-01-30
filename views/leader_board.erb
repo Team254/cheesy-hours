@@ -10,7 +10,7 @@
     </tr>
     <% Student.sort_by(&:project_hours).reverse.each do |student, index| %>
       <tr>
-        <td><%= index + 1 %></td>
+        <td><%= index %></td>
         <td>
           <a href="/students/<%= student.id %>"><%= student.first_name %> <%= student.last_name %></a>
         </td>
