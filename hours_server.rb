@@ -8,6 +8,7 @@ require "cgi"
 require "cheesy-common"
 require "pathological"
 require "sinatra/base"
+require "json"
 
 require "models"
 
@@ -21,7 +22,7 @@ module CheesyHours
       if @user.nil?
         session[:user] = nil
         # Note: signin_internal blocks all outside sources (localhost only)
-        unless ["/", "/sms", "/signin_internal"].include?(request.path)
+        unless ["/", "/sms", "/signed_in", "/signin_internal"].include?(request.path)
           redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
         end
       else
@@ -40,8 +41,8 @@ module CheesyHours
     end
 
     get "/signed_in" do
-      @signed_in_sessions = LabSession.where(:time_out => nil)
-      erb signed_in_sessions.to_json
+      signed_in_sessions = LabSession.where(:time_out => nil)
+      JSON.generate(signed_in_sessions);
     end
 
     post "/signin" do
