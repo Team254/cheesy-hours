@@ -39,6 +39,11 @@ module CheesyHours
       erb :index
     end
 
+    get "/signed_in" do
+      @signed_in_sessions = LabSession.where(:time_out => nil)
+      erb signed_in_sessions.to_json
+    end
+
     post "/signin" do
       halt(403, "Insufficient permissions. If you're a student, please sign in on Events.") unless @user.has_permission?("HOURS_SIGN_IN")
 
