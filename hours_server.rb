@@ -22,7 +22,7 @@ module CheesyHours
       if @user.nil?
         session[:user] = nil
         # Note: signin_internal blocks all outside sources (localhost only)
-        unless ["/", "/sms", "/signed_in", "/signin_internal"].include?(request.path)
+        unless ["/", "/sms", "/signin_internal"].include?(request.path)
           redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
         end
       else
@@ -38,11 +38,6 @@ module CheesyHours
     get "/" do
       @signed_in_sessions = LabSession.where(:time_out => nil)
       erb :index
-    end
-
-    get "/signed_in" do
-      signed_in_sessions = LabSession.where(:time_out => nil)
-      JSON.generate(signed_in_sessions);
     end
 
     post "/signin" do
@@ -239,7 +234,7 @@ module CheesyHours
         halt(400, "Need to be an administrator.")
       end
 
-      students = CheesyCommon::Auth.find_users_with_permission("HOURS_SIGN_IN")
+      students = CheesyCommon::Auth.find_users_with_permission("EVENTS_SIGNUP_EVENT")
       Student.truncate
       students.each do |student|
         Student.create(:id => student.bcp_id, :first_name => student.name[1], :last_name => student.name[0])
