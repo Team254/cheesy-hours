@@ -41,22 +41,44 @@ module CheesyHours
     end
 
     post "/signin" do
-      halt(403, "Insufficient permissions. If you're a student, please sign in on Events.") unless @user.has_permission?("HOURS_SIGN_IN")
+      halt(403, "Insufficient permissions. If you're a student.") unless @user.has_permission?("HOURS_SIGN_IN")
 
       @student = Student.get_by_id(params[:student_id])
       halt(400, "Invalid student.") if @student.nil?
 
       # Restrict sign-ins to the lab's IP address ranges.
-      ip_whitelist = CheesyCommon::Config.signin_ip_whitelist
-      if !ip_whitelist.empty? && ip_whitelist.none? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
-        halt(400, "Invalid IP address. Must sign in from the Robotics Lab.")
-      end
+      #ip_whitelist = CheesyCommon::Config.signin_ip_whitelist
+      #if !ip_whitelist.empty? && ip_whitelist.none? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
+      #  halt(400, "Invalid IP address. Must sign in from the Robotics Lab.")
+      #end
 
       # Check for existing open lab sessions.
       unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
         halt(400, "An open lab session already exists for student #{@student.id}.")
       end
       @student.add_lab_session(:time_in => Time.now)
+
+      redirect "/"
+    end
+
+    post "/signout" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_SIGN_IN")
+
+      @student = Student.get_by_id(params[:student_id])
+      halt(400, "Invalid student.") if @student.nil?
+
+      @tasks = params[:tasks]
+      halt(400, "Invalid tasks.") if @tasks.nil?
+
+      # Restrict sign-ins to the lab's IP address ranges.
+      #ip_whitelist = CheesyCommon::Config.signin_ip_whitelist
+      #if !ip_whitelist.empty? && ip_whitelist.none? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
+      #  halt(400, "Invalid IP address. Must sign in from the Robotics Lab.")
+      #end
+
+      lab_session = LabSession.where(:student_id => @student.id, :time_out => nil)
+      halt(400, "Invalid lab session.") if lab_session.nil?
+      lab_session.update(:time_out => Time.now, :tasks => @tasks)
 
       redirect "/"
     end
