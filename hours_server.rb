@@ -77,8 +77,11 @@ module CheesyHours
       #end
 
       lab_session = LabSession.where(:student_id => @student.id, :time_out => nil)
-      halt(400, "Invalid lab session.") if lab_session.nil?
-      lab_session.update(:time_out => Time.now, :tasks => @tasks)
+      if lab_session.empty?
+        halt(400, "Invalid lab session.")
+      end
+
+      lab_session.update(:time_out => Time.now, :tasks => @tasks, :mentor_name => @user.name_display)
 
       redirect "/"
     end
