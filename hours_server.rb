@@ -69,6 +69,7 @@ module CheesyHours
 
       @tasks = params[:tasks]
       halt(400, "Invalid tasks.") if @tasks.nil?
+      halt(400, "Tasks cannot be left empty.") if @tasks.length < 1
 
       # Restrict sign-ins to the lab's IP address ranges.
       #ip_whitelist = CheesyCommon::Config.signin_ip_whitelist
@@ -77,9 +78,7 @@ module CheesyHours
       #end
 
       lab_session = LabSession.where(:student_id => @student.id, :time_out => nil)
-      if lab_session.empty?
-        halt(400, "Invalid lab session.")
-      end
+      halt(400, "Invalid lab session.") if lab_session.empty?
 
       lab_session.update(:time_out => Time.now, :tasks => @tasks, :mentor_name => @user.name_display)
 
