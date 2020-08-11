@@ -48,14 +48,14 @@ body {
 	background: white;
 }
 
-#student_id {
+form input {
 	padding: 10px;
   border-radius: 5px;
   outline: none;
   border: 2px solid #e8ecf4;
 }
 
-#scanSubmit {
+.scanSubmit {
 	text-shadow: none;
 	outline: none;
 	background-image: none;
@@ -101,7 +101,7 @@ body {
 		width: calc(100vw - 40px);
 	}
 
-	#scanSubmit {
+	.scanSubmit {
     font-family: 'Open Sans', sans-serif;
     background-color: #0070ff;
     width: 100%;
@@ -111,7 +111,7 @@ body {
     border-radius: 10px;
 	}
 
-	#student_id {
+	form input {
 		width: calc(100vw - 80px);
 		font-size: 24px;
     padding: 20px;

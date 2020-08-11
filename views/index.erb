@@ -9,8 +9,18 @@
         </div>
       </div>
       <form action="/signin" method="POST">
-        <p><input class="form-control input-lg" name="student_id" placeholder="Student ID" id="student_id" autofocus></p>
-        <button type="submit" class="btn btn-success btn-lg" id="scanSubmit">Sign in</button>
+        <p><input class="form-control input-lg" name="student_id" placeholder="Student ID" autofocus></p>
+        <button type="submit" class="btn btn-success btn-lg scanSubmit">Sign in</button>
+      </form>
+      <div class="row">
+        <div class="span6">
+          <h2>Sign out</h2>
+        </div>
+      </div>
+      <form action="/signout" method="POST">
+        <p><input class="form-control input-lg" name="student_id" placeholder="Student ID"></p>
+        <p><input class="form-control input-lg" name="tasks" placeholder="Brief description of your completed tasks"></p>
+        <button type="submit" class="btn btn-success btn-lg scanSubmit">Sign out</button>
       </form>
     <% end %>
   <% end %>
