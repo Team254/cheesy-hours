@@ -9,6 +9,6 @@ BRANCH=remote_vex
 
 echo "Deploying $APP from Git $BRANCH branch..."
 echo
-ssh $USER@$HOST "cd /opt/sites/$APP && git checkout origin $BRANCH && git pull && bundle install && bundle exec rake db:migrate && bundle exec ruby ${SCRIPT_NAME}_control.rb restart"
+ssh $USER@$HOST "cd /opt/sites/$APP && git checkout $BRANCH && git pull && bundle install && bundle exec rake db:migrate && bundle exec ruby ${SCRIPT_NAME}_control.rb restart"
 echo
 echo "Deployed $APP."
