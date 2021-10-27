@@ -1,0 +1,43 @@
+<%= erb :header %>
+
+<div class="container">
+  <h2>Search by Date</h2>
+  <form action="/search" method="POST">
+    <label>Leave End Date empty to search for one day.</label>
+    <p id="query">
+      <input class="form-control input-lg text-input" name="start_date" value="<%= @start %>" placeholder="Start Date (yyyy-mm-dd)" autofocus>
+       to 
+      <input class="form-control input-lg text-input" name="end_date" value="<%= @end %>" placeholder="End Date (yyyy-mm-dd)">
+    </p>
+    <button type="submit" class="btn btn-success btn-lg" id="scanSubmit">Search</button>
+  </form>
+  <% if @query %>
+    <table class="table table-striped table-bordered table-condensed">
+      <tr>
+        <th>Name</th>
+        <th>Time In</th>
+        <th>Time Out</th>
+        <th>Project Hours</th>
+        <th>Signed Out By</th>
+        <th>Notes</th>
+      </tr>
+      <% @query.sort_by(&:id).each do |session| %>
+        <tr>
+          <td>
+            <a href="/students/<%= session.student.id %>"><%= session.student.first_name %> <%= session.student.last_name %></a>
+          </td>
+          <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %></td>
+          <td>
+            <%= session.time_out.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %>
+          </td>
+          <td><%= session.duration_hours.round(1) %></td>
+          <td><%= session.mentor ? "#{session.mentor.first_name} #{session.mentor.last_name}" :
+              session.mentor_name %></td>
+          <td><%= session.notes %></td>
+        </tr>
+      <% end %>
+    </table>
+  <% end %>
+</div>
+
+<%= erb :footer %>
