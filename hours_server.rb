@@ -199,8 +199,9 @@ module CheesyHours
       @start = params[:start_date]
       @end = params[:end_date]
       begin
-        start_date = DateTime.parse(@start)
-        end_date = DateTime.parse(@end == "" ? @start : @end) + 1
+        offset = Time.now.in_time_zone('America/Los_Angeles').formatted_offset
+        start_date = DateTime.parse(@start).change(offset: offset)
+        end_date = DateTime.parse(@end == "" ? @start : @end).change(offset: offset) + 1
       rescue
         halt(400, "Invalid date.")
       end
