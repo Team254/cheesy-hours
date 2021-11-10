@@ -208,7 +208,12 @@ module CheesyHours
       if start_date > end_date
         halt(400, "Start date must be before end date.")
       end
-      @query = LabSession.where{time_out > start_date}.where{time_in < end_date}.order(:id)
+      @query = []
+      LabSession.each do |lab_session|
+        if lab_session.time_out >= start_date && lab_session.time_in <= end_date
+          @query << lab_session
+        end
+      end
       erb :search
     end
 
