@@ -189,6 +189,34 @@ module CheesyHours
       redirect "/mentors"
     end
 
+    get "/search" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      erb :search
+    end
+
+    post "/search" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      @start = params[:start_date]
+      @end = params[:end_date]
+      begin
+        offset = Time.now.in_time_zone('America/Los_Angeles').formatted_offset
+        start_date = DateTime.parse(@start).change(offset: offset)
+        end_date = DateTime.parse(@end == "" ? @start : @end).change(offset: offset) + 1
+      rescue
+        halt(400, "Invalid date.")
+      end
+      if start_date > end_date
+        halt(400, "Start date must be before end date.")
+      end
+      @query = []
+      LabSession.each do |lab_session|
+        if lab_session.time_out >= start_date && lab_session.time_in <= end_date
+          @query << lab_session
+        end
+      end
+      erb :search
+    end
+
     # Receives all SMS messages via Twilio.
     post "/sms" do
       content_type "application/xml"

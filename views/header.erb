@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" sizes="72x72" href="http://media.team254.com/homepage/icons/apple-touch-icon-72x72.png">
   <link rel="apple-touch-icon" href="http://media.team254.com/homepage/icons/apple-touch-icon-57x57.png">
   <link href="/css/bootstrap.min.css" rel="stylesheet">
-  <link href="/css/css.css?v3" rel="stylesheet" type="text/css" />
+  <link href="/css/css.css?v4" rel="stylesheet" type="text/css" />
   <script src="/js/jquery-1.10.1.min.js"></script>
   <script src="/js/bootstrap.min.js"></script>
 </head>
@@ -24,25 +24,35 @@
       </a>
       <a class="brand" href="/">Cheesy VEX Hours</a>
       <ul class="nav">
-        <li><a href="/leader_board"></i> Leader Board</a></li>
-        <% if false && @user && @user.has_permission?("VEXHOURS_EDIT") %>
-          <li><a href="/mentors">Manage Mentors</a></li>
+        <li><a href="/leader_board">Leader Board</a></li>
+        <% if @user && @user.has_permission?("VEXHOURS_EDIT") %>
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Admin <b class="caret"></b></a>
+            <ul class="dropdown-menu">
+              <li>
+                <a href="/mentors">Manage Mentors</a>
+              </li>
+              <li>
+                <a href="/search">Search</a>
+              </li>
+            </ul>
+          </li>
         <% end %>
       </ul>
       <div class="pull-right">
         <ul class="nav pull-right">
           <% if @user %>
             <li class="dropdown">
-              <a href="#" class="dropdown-toggle" data-toggle="dropdown"></i>
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown">
                 <%= @user.name_display %> <b class="caret"></b></a>
               <ul class="dropdown-menu">
                 <li>
-                  <a href="/logout"><i class="icon-off"></i> Logout</a>
+                  <a href="/logout">Logout</a>
                 </li>
               </ul>
             </li>
           <% else %>
-            <li><a href="<%= CheesyCommon::Config.members_url %>?site=vexhours&path=/"><i class="icon-bar-chart"></i> Login</a></li>
+            <li><a href="<%= CheesyCommon::Config.members_url %>?site=vexhours&path=/">Login</a></li>
           <% end %>
         </ul>
       </div>
