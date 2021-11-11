@@ -5,11 +5,7 @@ USER=team254
 HOST=ec2.team254.com
 APP=nontech-hours
 SCRIPT_NAME=hours_server
-<<<<<<< HEAD
 BRANCH=nontech
-=======
-BRANCH=master
->>>>>>> master
 
 echo "Deploying $APP from Git $BRANCH branch..."
 echo
