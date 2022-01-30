@@ -210,7 +210,7 @@ module CheesyHours
       end
       @query = []
       LabSession.each do |lab_session|
-        if lab_session.time_out >= start_date && lab_session.time_in <= end_date
+        if !lab_session.time_out.nil? && lab_session.time_out >= start_date && lab_session.time_in <= end_date
           @query << lab_session
         end
       end
