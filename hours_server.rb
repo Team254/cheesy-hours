@@ -189,6 +189,28 @@ module CheesyHours
       redirect "/mentors"
     end
 
+    get "/mentor_checkins" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      @mentor_checkins = MentorCheckin.order_by(:id).reverse
+      erb :mentor_checkins
+    end
+
+    get "/mentor_checkins/:id/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      @mentor_checkin = MentorCheckin[params[:id]]
+      halt(400, "Invalid mentor_checkin.") if @mentor_checkin.nil?
+      @referrer = request.referrer
+      erb :delete_mentor_checkin
+    end
+
+    post "/mentor_checkins/:id/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      mentor_checkin = MentorCheckin[params[:id]]
+      halt(400, "Invalid mentor_checkin.") if mentor_checkin.nil?
+      mentor_checkin.delete
+      redirect params[:referrer] || "/mentor_checkins"
+    end
+
     get "/search" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       erb :search
@@ -227,16 +249,20 @@ module CheesyHours
       halt(200, sms_response(["Error: Don't recognize sender's phone number."])) if mentor.nil?
 
       # First check for special control messages.
-      if params[:Body].downcase == "gtfo"
+      if params[:Body].strip.downcase == "gtfo"
         # Sign everyone out all at once.
         LabSession.where(:time_out => nil).each do |lab_session|
           lab_session.update(:time_out => Time.now, :mentor => mentor)
         end
         halt(200, sms_response(["All students signed out."]))
+      elsif params[:Body].strip.downcase == "here"
+        # Register a mentor check-in.
+        MentorCheckin.create(mentor: mentor, time_in: Time.now)
+        halt(200, sms_response(["Checked in #{mentor.first_name} #{mentor.last_name}."]))
       end
 
       # Next, check for multiple IDs in the message.
-      ids = params[:Body].split(" ")
+      ids = params[:Body].strip.split(" ")
       messages = ids.map do |id|
         # Retrieve the student record using the body of the message.
         student = Student.get_by_id(id)
