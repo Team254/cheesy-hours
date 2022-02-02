@@ -18,7 +18,7 @@ class Student < Sequel::Model
   end
 
   def project_hours
-    lab_sessions.reject { |session| session.time_out.nil? }.inject(0) do |sum, session|
+    lab_sessions.reject { |session| session.time_out.nil? || session.excluded_from_total }.inject(0) do |sum, session|
       sum + session.duration_hours
     end
   end

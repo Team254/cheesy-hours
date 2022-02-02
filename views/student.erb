@@ -15,6 +15,7 @@
         <th>Time Out</th>
         <th>Project Hours</th>
         <th>Signed Out By</th>
+        <th>Excluded From Total</th>
         <th>Notes</th>
         <% if @user.has_permission?("HOURS_EDIT") %>
           <th>Action</th>
@@ -29,6 +30,7 @@
           <td><%= session.duration_hours.round(1) %></td>
           <td><%= session.mentor ? "#{session.mentor.first_name} #{session.mentor.last_name}" :
               session.mentor_name %></td>
+          <td><%= session.excluded_from_total %></td>
           <td><%= session.notes %></td>
           <% if @user.has_permission?("HOURS_EDIT") %>
             <td>
