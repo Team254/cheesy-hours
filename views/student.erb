@@ -4,7 +4,7 @@
     <% if @user.has_permission?("HOURS_EDIT") %>
       <div class="pull-right" style="margin-top: 20px;">
         <a href="/students/<%= @student.id %>/new_lab_session" class="btn btn-success btn-small">
-       </i> New Lab Session
+          New Lab Session
         </a>
       </div>
     <% end %>
@@ -43,6 +43,31 @@
         </tr>
       <% end %>
     </table>
+    <% if @user.has_permission?("HOURS_EDIT") %>
+      <div style="margin-top: 6.5rem"></div>
+      <div class="pull-right">
+        <a href="/students/<%= @student.id %>/mark_excused" class="btn btn-success btn-small">
+            Add Excusal
+          </a>
+      </div>
+      <h3>Excusals</h3>
+      <table class="table table-striped table-bordered table-condensed">
+        <tr>
+          <th>Date</th>
+          <th>Action</th>
+        </tr>
+        <tbody>
+          <% @student.excused_sessions.each do |excusal| %>
+            <tr>
+              <td><%=excusal.date.strftime("%m/%d/%y")%></td>
+              <td>
+                <a href="/students/<%=@student.id%>/excusals/<%=excusal.date.strftime("%Y-%m-%d")%>/delete" class="btn btn-danger btn-small">Delete</a>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
   </div>
 </div>
 

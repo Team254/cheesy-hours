@@ -6,6 +6,7 @@
 class Student < Sequel::Model
   unrestrict_primary_key
   one_to_many :lab_sessions
+  one_to_many :excused_sessions
 
   def self.get_by_id(id)
     # Try first by assuming id is the full 6-digit ID.

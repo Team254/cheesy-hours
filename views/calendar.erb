@@ -1,0 +1,218 @@
+<%= erb :header %>
+<div class="container container-wide">
+   <div style="display: flex; align-items: center">
+   <h2>Calendar</h2>
+   <details class="" style="margin-left: 3rem">
+      <summary style="list-style: none">Legend</summary>
+   </details>
+   <table style="border: 1px solid #000; height: 38px; border-left: none; border-top-right-radius: 4px; border-bottom-right-radius: 4px;">
+      <thead>
+         <tr>
+            <th style = "width:70px; height:34px; text-align: center; background-color: var(--missing-color); color: White">Absent</th>
+            <th style = "width:70px; height:34px; text-align: center; background-color: var(--present-color); color: White">Present</th>
+            <th style = "width:70px; height:34px; text-align: center; background-color: var(--excused-color)">Optional</th>
+            <th class="stripe-bg" style = "width:70px; height:34px; --color-a: var(--excused-color); --color-b: var(--partial-color); text-align: center; border-top-right-radius: 4px; border-bottom-right-radius: 4px;">Excused</th>
+         </tr>
+      </thead>
+   </table>
+   </div>
+      <div class = "cheesy-row" style="clear: right">
+        <div style="overflow-x: scroll; padding-bottom: 64px;" class = "column2">
+         <div>
+            <table style="table-layout: fixed; margin-bottom: 0px" class="table table-striped table-bordered table-condensed">
+               <tr>
+                  <% DB.fetch """
+                     WITH
+                        build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions)
+                     SELECT
+                        build_days.build_date,
+                        !ISNULL(cheesy_frc_hours.optional_builds.date) AS optional
+                     FROM
+                        build_days LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=build_date
+                     ORDER BY build_date ASC;
+                  """ do |build_date|%>
+                        <th style="width:60px; height:45px; padding-left: 0; padding-right: 0; text-align: center"> 
+                           <%= build_date[:build_date].strftime("%m/%d") %>
+                           <% if build_date[:optional] == 1 %>
+                              <br/>
+                              <a href="/delete_optional/<%=build_date[:build_date]%>"><small style="font-size: 0.65em">(Optional)</small></a>
+                           <% else %>
+                              <br/>
+                              <a href="/schedule_optional?date=<%=build_date[:build_date]%>" class="visible-if-parent-hover"><small style="font-size: 0.65em; padding: 0px 8px;">+optional</small></a>
+                           <% end %>
+                        </th>
+                  <% end %>
+               </tr>
+            </table>
+            <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed column-based">
+               <%studentsCnt = Student.count%>
+               <%rowNum = 1%>
+               <%DB.fetch """
+                  WITH 
+                     build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE !excluded_from_total),
+                     ordered_students AS (
+                        WITH counts AS (
+                           SELECT
+                              COUNT(*) as sessions_attended_count,
+                              student_id
+                           FROM cheesy_frc_hours.lab_sessions
+                           GROUP BY student_id)
+                        SELECT
+                           id as student_id,
+                              sessions_attended_count
+                        FROM 
+                           cheesy_frc_hours.students
+                        LEFT JOIN counts ON cheesy_frc_hours.students.id=counts.student_id
+                     )
+                  SELECT DISTINCT
+                     build_days.build_date,
+                     ordered_students.student_id,
+                     COALESCE(ordered_students.sessions_attended_count, 0) AS sessions_attended_count,
+                     -- cheesy_frc_hours.lab_sessions.id as session_id,
+                     !ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
+                     ISNULL(cheesy_frc_hours.optional_builds.date) AS required,
+                     !ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused
+                  FROM 
+                     build_days CROSS JOIN ordered_students
+                     
+                     LEFT JOIN cheesy_frc_hours.optional_builds ON DATE(cheesy_frc_hours.optional_builds.date)=build_days.build_date
+                     LEFT JOIN cheesy_frc_hours.lab_sessions ON DATE(cheesy_frc_hours.lab_sessions.time_in) = build_days.build_date 
+                        AND cheesy_frc_hours.lab_sessions.student_id=ordered_students.student_id
+                        AND !cheesy_frc_hours.lab_sessions.excluded_from_total
+                     LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id=ordered_students.student_id
+                        AND cheesy_frc_hours.excused_sessions.date=build_days.build_date
+                  ORDER BY 
+                     build_date ASC, 
+                     sessions_attended_count DESC, 
+                     student_id DESC  -- fallback if students are tied in lab sessions
+                  ;
+
+               """ do |row|%>
+                  <%student = Student[row[:student_id]]%>
+                  <%session_id = student.lab_sessions.find {|session| session.time_in.strftime("%Y-%m-%d") == row[:build_date].to_s}.id rescue nil%>
+                  <%if (rowNum.modulo(studentsCnt) == 1)%>
+                     <tr style="width: 61px">
+                  <%end%>
+                  <%if (row[:attended] == 1)%>
+                     <td style = "background-color: var(--present-color); min-width:50px; height:30px;">
+                        <div class="btn-group visible-if-parent-hover">
+                           <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+                              <span class="caret"></span>
+                           </a>
+                           <ul class="dropdown-menu">
+                              <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
+                              <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
+                           </ul>
+                        </div>
+                     </td>
+                  <%elsif (row[:excused] == 1 && row[:required] == 1)%>
+                     <td style = "--color-a: var(--excused-color); --color-b: var(--partial-color); min-width:50px; height:30px;" class="stripe-bg">
+                        <div class="btn-group visible-if-parent-hover">
+                           <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+                              <span class="caret"></span>
+                           </a>
+                           <ul class="dropdown-menu">
+                              <li><a href="/students/<%=row[:student_id]%>/excusals/<%=row[:build_date]%>/delete">Unexcuse</a></li>
+                           </ul>
+                        </div>
+                     </td>
+                  <%elsif (!(row[:required] == 1))%>
+                     <td style="background-color: var(--excused-color); min-width:50px; height:30px;">
+                        <div class="btn-group visible-if-parent-hover">
+                           <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+                              <span class="caret"></span>
+                           </a>
+                           <ul class="dropdown-menu">
+                              <li><a href="/students/<%=row[:student_id]%>/new_lab_session?date=<%=row[:build_date]%>">Add Lab Session</a></li>
+                           </ul>
+                        </div>
+                     </td>
+                  <%else%>
+                     <td style = "background-color: var(--missing-color); min-width:50px; height:30px;">
+                        <div class="btn-group visible-if-parent-hover">
+                           <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+                              <span class="caret"></span>
+                           </a>
+                           <ul class="dropdown-menu">
+                              <li><a href="/students/<%=row[:student_id]%>/new_lab_session?date=<%=row[:build_date]%>">Add Lab Session</a></li>
+                              <li><a href="/students/<%=row[:student_id]%>/mark_excused?date=<%=row[:build_date]%>">Excuse Student</a></li>
+                           </ul>
+                        </div>
+                     </td>
+                  <% end %>
+                  <%if (rowNum.modulo(studentsCnt) == 0)%>
+                     </tr>
+                  <% end %>
+                  <%rowNum += 1%>
+               <%end%>
+            
+            </table>
+         </div>
+      </div>
+      <div class = "column1">
+            <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed">
+              <tr>
+                <th style="width:65px; height:45px; text-align: center">Builds Attended</th>
+                <th style="width:80px; height:45px; text-align: center">Attendance Rate</th>
+                <th style="width:65px; height:45px; text-align: center">Student ID</th>
+                <th style="width:200px; height:45px; text-align: center">Name</th>
+               </tr>
+               <% DB.fetch """
+                  WITH build_info AS (
+                     WITH 
+                        build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE !excluded_from_total)
+                     SELECT DISTINCT
+                        build_days.build_date,
+                        students.id AS student_id,
+                        !ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
+                        ISNULL(cheesy_frc_hours.optional_builds.date) AS required,
+                        !ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused
+                     FROM 
+                        build_days CROSS JOIN cheesy_frc_hours.students
+                        
+                        LEFT JOIN cheesy_frc_hours.optional_builds ON DATE(cheesy_frc_hours.optional_builds.date)=build_days.build_date
+                        LEFT JOIN cheesy_frc_hours.lab_sessions ON DATE(cheesy_frc_hours.lab_sessions.time_in) = build_days.build_date 
+                           AND cheesy_frc_hours.lab_sessions.student_id=cheesy_frc_hours.students.id
+                           AND !cheesy_frc_hours.lab_sessions.excluded_from_total
+                        LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id=cheesy_frc_hours.students.id
+                           AND cheesy_frc_hours.excused_sessions.date=build_days.build_date
+                        ORDER BY build_date ASC
+                  ), student_build_info AS (
+                     SELECT 
+                        COUNT(IF(required AND (!excused OR (excused AND attended)), 1, NULL)) AS required_count,
+                        -- COUNT(IF(excused AND !attended, 1, NULL)) AS excused_count,
+                        COUNT(IF(attended AND required, 1, NULL)) AS required_attended_count,
+                        -- COUNT(IF(!required AND attended, 1, NULL)) AS optional_attended_count,
+                        COUNT(IF(attended, 1, NULL)) AS total_attended_count,
+                        student_id
+                     FROM build_info 
+                     GROUP BY student_id
+                     -- HAVING build_info.student_id=student_id
+                  )
+
+                  SELECT * FROM student_build_info
+                  ORDER BY total_attended_count DESC, student_id DESC;
+               """ do |row|
+                  student = Student[row[:student_id]]
+               %>
+                  <tr style="width: 410px">
+                     <td style="width:65px; height:30px;"><%=student.total_sessions_attended%></td>
+                     <td style ="width:80px; height: 30px"><%=(100 * row[:required_attended_count].to_f/row[:required_count]).to_i rescue "0"%>%</td>
+                     <td style="width:65px; height:30px;"><%=student.id%> </td>
+                     <td 
+                        style="width:200px; height:30px; white-space: nowrap;"
+                        title="<%=student.first_name + " " + student.last_name%>"
+                     ><a href="/students/<%= student.id %>"><%= student.first_name %> <%= student.last_name %></a></td>
+                  </tr>
+              <%end%>
+            </table>
+            <% if @user.has_permission?("HOURS_VIEW_REPORT") %>
+      <h4><a href="/csv_attendance_report">Download CSV Report</a></h4>
+    <% end %>
+        </div>
+</div>
+<script>
+    var left = $('.column2').width();
+    $('.column2').scrollLeft(left);
+</script>
+<%= erb :footer %>

@@ -1,132 +1,252 @@
 @import url('https://fonts.googleapis.com/css?family=Open+Sans&display=swap');
 
+:root {
+    --excused-color: #ffba08;
+    --partial-color: #cf990f;
+    --present-color: #39ad4d;
+    --missing-color: #d00000;
+}
+
 body {
-	font-family: "Open Sans",AvenirNext-DemiBold,sans-serif;
-	font-size: 16px;
-	background: #edf1f6;
+    font-family: "Open Sans",AvenirNext-DemiBold,sans-serif;
+    font-size: 16px;
+    background: #edf1f6;
+}
+
+details + table {
+    display: none;
+}
+
+details[open] + table {
+    display: block;
+}
+
+details {
+    border: 1px solid #08c;
+    color: #08c;
+    border-radius: 4px;
+    padding: 0.5em 0.5em 0;
+}
+
+details:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+details[open] {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border: 1px solid #000;
+    color: black;
+}
+
+summary {
+    font-weight: bold;
+    margin: -0.5em -0.5em 0;
+    padding: 0.5em;
+}
+
+table.column-based {
+	display: table;
+}
+table.column-based tr {
+	display: table-cell;
+}
+table.column-based tr td:not(.row-based) {
+	display: block;
+}
+table.column-based tr:not(.row-based) th:not(.row-based) {
+	display: block;
+}
+
+.column-based thead:first-child tr:first-child>th:last-child, 
+.column-based tbody:first-child tr:first-child>td:last-child, 
+.column-based tbody:first-child tr:first-child>th:last-child {
+    -webkit-border-top-right-radius: 0px;
+    border-top-right-radius: 0px;
+    -moz-border-radius-topright: 0px;
+    -webkit-border-bottom-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+    -moz-border-radius-bottomleft: 4px;
+}
+
+.column-based thead:first-child tr:last-child>th:first-child, 
+.column-based tbody:first-child tr:last-child>td:first-child, 
+.column-based tbody:first-child tr:last-child>th:first-child {
+    -webkit-border-top-right-radius: 4px;
+    border-top-right-radius: 4px;
+    -moz-border-radius-topright: 4px;
+    -webkit-border-bottom-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+    -moz-border-radius-bottomleft: 0px;
+}
+
+.table-bordered.column-based tbody:first-child tr:first-child td {
+    border-top: 1px solid #ddd;
+}
+
+.visible-if-parent-hover {
+    display: none;
+}
+
+:hover > .visible-if-parent-hover {
+    display: inherit;
+}
+
+.container.container-wide {
+    width: 1200px;
 }
 
 .navbar-inner {
-	background: #fff;
-	border: none;
-	padding: 6px 18px;
-	border-radius: 0;
-	height: 50px;
-	border-bottom: 2px solid #e8ecf4;
-  	box-shadow: none;
+    background: #fff;
+    border: none;
+    padding: 6px 18px;
+    border-radius: 0;
+    height: 50px;
+    border-bottom: 2px solid #e8ecf4;
+    box-shadow: none;
 }
-
 .navbar .brand, .navbar .nav>li>a {
-	margin-top: 5px;
-	text-shadow: none;
-	padding: 10px, 10px, 10px;
-	color: #8f9bb3;
-	font-weight: bold !important;
+    margin-top: 5px;
+    text-shadow: none;
+    padding: 10px, 10px, 10px;
+    color: #8f9bb3;
+    font-weight: bold !important;
 }
-
 .navbar .nav li.dropdown>.dropdown-toggle .caret {
-	border-top-color: #8f9bb3;
-  	border-bottom-color: #8f9bb3;
+    border-top-color: #8f9bb3;
+    border-bottom-color: #8f9bb3;
 }
-
 #logo {
-	margin: 5px;
-	height: 40px;
-	width: 70px;
-	display: block;
-	float: left;
-	margin-right: 20px;
+    margin: 5px;
+    height: 40px;
+    width: 70px;
+    display: block;
+    float: left;
+    margin-right: 20px;
 }
-
 .brand {
-	color: #2d3448 !important;
-	font-weight: bold !important;
-	font-size: 24px !important;
+    color: #2d3448 !important;
+    font-weight: bold !important;
+    font-size: 24px !important;
+}
+.table {
+    background: white;
 }
 
-.table {
-	background: white;
+.calendar-cell > * {
+    display: none;
+    background-color: white;
+}
+
+.calendar-cell:hover > * {
+    display: inherit;
+    position: absolute;
 }
 
 .text-input {
-	padding: 10px;
-	border-radius: 5px;
-	outline: none;
-  	border: 2px solid #e8ecf4;
+    padding: 10px;
+    border-radius: 5px;
+    outline: none;
+    border: 2px solid #e8ecf4;
 }
-
 #scanSubmit {
-	text-shadow: none;
-	outline: none;
-	background-image: none;
-	border: none;
-	box-shadow: none;
-	box-sizing: border-box;
-	width: 150px;
-	height: 40px;
-	font-size: 18px;
-	border: solid 2px #0070ff;
-	color: #0070FF;
-	background: transparent;
+    text-shadow: none;
+    outline: none;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    box-sizing: border-box;
+    width: 150px;
+    height: 40px;
+    font-size: 18px;
+    border: solid 2px #0070ff;
+    color: #0070FF;
+    background: transparent;
 }
-
 .btn-danger {
-	text-shadow: none;
-	outline: none;
-	background-image: none;
-	border: solid 2px #da4f49;
-	box-shadow: none;
-	color: #da4f49;
-	background: transparent;
+    text-shadow: none;
+    outline: none;
+    background-image: none;
+    border: solid 2px #da4f49;
+    box-shadow: none;
+    color: #da4f49;
+    background: transparent;
 }
-
 .btn-primary {
-	text-shadow: none;
-	outline: none;
-	background-image: none;
-	border: solid 2px #0070ff;
-	box-shadow: none;
-	color: #0070FF;
-	background: transparent;
+    text-shadow: none;
+    outline: none;
+    background-image: none;
+    border: solid 2px #0070ff;
+    box-shadow: none;
+    color: #0070FF;
+    background: transparent;
+}
+.cheesy-row {
+    margin-left:-5px;
+    margin-right:-5px;
+	display: flex !important;
+    flex-direction: row-reverse;
 }
 
+.stripe-bg {
+    background: repeating-linear-gradient(
+    216deg,
+    var(--color-a),
+    var(--color-a) 4px,
+    var(--color-b) 4px,
+    var(--color-b) 8px
+    );
+}
+    
+.column1 {
+	float: left;
+	width: 40%;
+	padding: 0px;
+}
+.column2 {
+    float: left;
+    width: 60%;
+    padding: 0px;
+}
+    
+/* Clearfix (clear floats) */
+.row::after {
+	content: "";
+	clear: both;
+	display: table;
+}
 @import url('https://fonts.googleapis.com/css?family=Open+Sans:300&display=swap');
 @media only screen and (max-width: 768px) {
-	.container {
-    	margin: 0 20px;
-    	width: calc(100vw - 40px);
-	}
-
-	.table {
-		width: calc(100vw - 40px);
-	}
-
-	#scanSubmit {
-		font-family: 'Open Sans', sans-serif;
-		background-color: #0070ff;
-		width: 100%;
-		height: 60px;
-		font-size: 24px;
-		color: #ffffff;
-		border-radius: 10px;
-	}
-
-	#query {
-		text-align: center;
-	}
-
-	.text-input {
-		width: calc(100vw - 80px);
-		font-size: 24px;
-		padding: 20px;
-		border-radius: 20px;
-		line-height: 40px;
-		margin: 8px 0;
-	}
-
-	h2 {
-		margin-left: 10px;
-		font-size: 40px;
-		margin-bottom: 30px;
-	}
+    .container {
+        margin: 0 20px;
+        width: calc(100vw - 40px);
+    }
+    .table {
+        width: calc(100vw - 40px);
+    }
+    #scanSubmit {
+        font-family: 'Open Sans', sans-serif;
+        background-color: #0070ff;
+        width: 100%;
+        height: 60px;
+        font-size: 24px;
+        color: #ffffff;
+        border-radius: 10px;
+    }
+    #query {
+        text-align: center;
+    }
+    .text-input {
+        width: calc(100vw - 80px);
+        font-size: 24px;
+        padding: 20px;
+        border-radius: 20px;
+        line-height: 40px;
+        margin: 8px 0;
+    }
+    h2 {
+        margin-left: 10px;
+        font-size: 40px;
+        margin-bottom: 30px;
+    }
 }
