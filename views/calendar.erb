@@ -63,6 +63,7 @@
                         FROM 
                            cheesy_frc_hours.students
                         LEFT JOIN counts ON cheesy_frc_hours.students.id=counts.student_id
+                        -- ensure that a student appears, regardless of any lab sessions they showed up to
                      )
                   SELECT DISTINCT
                      build_days.build_date,
