@@ -9,22 +9,6 @@ ORDER BY build_date ASC;
 """
 
 CALENDAR_BUILD_INFO_QUERY = """
-WITH
-    ordered_students AS (
-        WITH counts AS (
-            SELECT
-                COUNT(*) as sessions_attended_count,
-                student_id
-            FROM cheesy_frc_hours.lab_sessions
-            GROUP BY student_id
-        )
-        SELECT
-            id as student_id,
-            sessions_attended_count
-        FROM 
-            cheesy_frc_hours.students
-        LEFT JOIN counts ON cheesy_frc_hours.students.id=counts.student_id
-    )
 SELECT DISTINCT
     build_days.build_date,
     ordered_students.student_id,
