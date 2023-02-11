@@ -11,11 +11,11 @@ require "sinatra/base"
 require "json"
 
 require "models"
+require "queries"
 
 module CheesyHours
   class Server < Sinatra::Base
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
-
     # Enforce authentication for all non-public routes.
     before do
       @user = CheesyCommon::Auth.get_user(request)
@@ -78,16 +78,90 @@ module CheesyHours
       erb :leader_board
     end
 
+    get "/calendar" do
+      erb :calendar
+    end
+
+    get "/schedule_optional" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      @referrer = request.referrer
+      @date = params[:date]
+      erb :optional_build_scheduler
+    end
+
+    post "/schedule_optional" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(400, "Invalid date.") if params[:date].nil?|| params[:date] == ""
+
+      OptionalBuild.create(:date => params[:date]) if OptionalBuild.where(:date => params[:date]).empty?
+
+      redirect params[:referrer]
+    end
+
+    get "/delete_optional/:date" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      @referrer = request.referrer
+
+      erb :delete_optional_build
+    end
+
+    post "/delete_optional/:date" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      OptionalBuild.where(:date => params[:date]).delete
+
+      redirect params[:referrer]
+    end
+
+
     get "/students/:id" do
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
       erb :student
     end
 
+    get "/students/:id/mark_excused" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      @student = Student[params[:id]]
+      halt(400, "Invalid student.") if @student.nil?
+      @referrer = request.referrer
+      if !params[:date].nil?
+        @date = params[:date]
+      end
+      erb :mark_excused
+    end
+
+    post "/students/:id/mark_excused" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(400, "Missing date.") if params[:date].nil? || params[:date] == ""
+      ExcusedSession.create(:date => params[:date], :student_id => params[:id])
+      redirect params[:referrer]
+    end
+
+    get "/students/:id/excusals/:date/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      @excusal = ExcusedSession.where(:date => params[:date], :student_id => :id)
+      halt(400, "Invalid excusal.") if @excusal.nil?
+      @referrer = request.referrer
+      erb :delete_excusal
+    end
+
+    post "/students/:id/excusals/:date/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id])
+      halt(400, "Invalid excusal.") if @excusal.nil?
+      @excusal.delete
+      redirect params[:referrer]
+    end
+
     get "/students/:id/new_lab_session" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
+      @referrer = request.referrer
+      if !params[:date].nil?
+        # allow prefilling the date based on a url parameter
+        @lab_session = OpenStruct.new(:time_in => params[:date], :time_out => params[:date])
+      end
       erb :edit_lab_session
     end
 
@@ -95,7 +169,8 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
-      student.add_lab_session(:time_in => params[:time_in], :time_out => params[:time_out],
+      student.add_lab_session(:time_in => DateTime.parse(params[:time_in]).utc, 
+                              :time_out => DateTime.parse(params[:time_out]).utc,
                               :notes => params[:notes],
                               :mentor_name => params[:time_out].empty? ? nil : @user.name_display)
       redirect params[:referrer] || "/leader_board"
@@ -120,7 +195,8 @@ module CheesyHours
       else
         mentor_name = @lab_session.mentor_name
       end
-      @lab_session.update(:time_in => params[:time_in], :time_out => params[:time_out],
+      @lab_session.update(:time_in => DateTime.parse(params[:time_in]).utc, 
+                          :time_out => DateTime.parse(params[:time_out]).utc,
                           :notes => params[:notes], :mentor_name => mentor_name)
       redirect params[:referrer] || "/leader_board"
     end
@@ -315,6 +391,21 @@ module CheesyHours
         </Response>
       END
     end
+
+    get "/csv_attendance_report" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW_REPORT")
+      content_type "text/csv"
+
+      rows = []
+      rows << ["Last Name", "First Name", "Student ID", "Attendance Percentage", "Project Hours", "Total # of Sign Outs"].join(",")
+      DB.fetch CALENDAR_STUDENT_INFO_QUERY do |row|
+        student = Student[row[:student_id]]
+        build_percentage = ((100 * row[:required_attended_count].to_f/row[:required_count]).to_i rescue "0").to_s + "%"
+        rows << [student.last_name, student.first_name, student.id, build_percentage, student.project_hours, student.total_sessions_attended].join(",")
+      end
+      rows.join("\n")
+    end
+
 
     get "/reset_hours" do
       unless @user.has_permission?("DATABASE_ADMIN")

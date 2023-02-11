@@ -1,0 +1,20 @@
+<%= erb :header %>
+
+<script>
+  var timeOffset = " -0" + -(new Date()).getTimezoneOffset() / 60 + "00";
+</script>
+
+<div class="container">
+  <h2>Mark student excused</h2>
+  <form action="" method="POST">
+    <input type="hidden" name="referrer" value="<%= @referrer %>" />
+    <label for="date">Date of Excusal</label>
+    <input type="date" name="date" value="<%=@date rescue ""%>">
+    <p>
+      An excused student will not be penalized for being absent.
+    </p>
+    <label><input type="submit" class="btn btn-success btn-medium" value="Save"></label>
+  </form>
+</div>
+
+<%= erb :footer %>
