@@ -11,6 +11,7 @@ require "sinatra/base"
 require "json"
 
 require "models"
+require "queries"
 
 module CheesyHours
   class Server < Sinatra::Base
@@ -397,42 +398,7 @@ module CheesyHours
 
       rows = []
       rows << ["Last Name", "First Name", "Student ID", "Attendance Percentage", "Project Hours", "Total # of Sign Outs"].join(",")
-      DB.fetch """
-        WITH build_info AS (
-            WITH 
-              build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE !excluded_from_total)
-            SELECT DISTINCT
-              build_days.build_date,
-              students.id AS student_id,
-              !ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
-              ISNULL(cheesy_frc_hours.optional_builds.date) AS required,
-              !ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused
-            FROM 
-              build_days CROSS JOIN cheesy_frc_hours.students
-              
-              LEFT JOIN cheesy_frc_hours.optional_builds ON DATE(cheesy_frc_hours.optional_builds.date)=build_days.build_date
-              LEFT JOIN cheesy_frc_hours.lab_sessions ON DATE(cheesy_frc_hours.lab_sessions.time_in) = build_days.build_date 
-                  AND cheesy_frc_hours.lab_sessions.student_id=cheesy_frc_hours.students.id
-                  AND !cheesy_frc_hours.lab_sessions.excluded_from_total
-              LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id=cheesy_frc_hours.students.id
-                  AND cheesy_frc_hours.excused_sessions.date=build_days.build_date
-              ORDER BY build_date ASC
-        ), student_build_info AS (
-            SELECT 
-              COUNT(IF(required AND (!excused OR (excused AND attended)), 1, NULL)) AS required_count,
-              -- COUNT(IF(excused AND !attended, 1, NULL)) AS excused_count,
-              COUNT(IF(attended AND required, 1, NULL)) AS required_attended_count,
-              -- COUNT(IF(!required AND attended, 1, NULL)) AS optional_attended_count,
-              COUNT(IF(attended, 1, NULL)) AS total_attended_count,
-              student_id
-            FROM build_info 
-            GROUP BY student_id
-            -- HAVING build_info.student_id=student_id
-        )
-
-        SELECT * FROM student_build_info
-        ORDER BY total_attended_count DESC, student_id DESC;
-      """ do |row|
+      DB.fetch CALENDAR_STUDENT_INFO_QUERY do |row|
         student = Student[row[:student_id]]
         build_percentage = ((100 * row[:required_attended_count].to_f/row[:required_count]).to_i rescue "0").to_s + "%"
         rows << [student.last_name, student.first_name, student.id, build_percentage, student.project_hours, student.total_sessions_attended].join(",")
