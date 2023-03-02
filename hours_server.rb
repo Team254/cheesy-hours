@@ -79,6 +79,7 @@ module CheesyHours
     end
 
     get "/calendar" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       erb :calendar
     end
 
