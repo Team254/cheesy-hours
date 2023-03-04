@@ -1,4 +1,5 @@
 <%= erb :header %>
+<% DB.fetch "SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));" do end %>
 <div class="container container-wide">
    <div style="display: flex; align-items: center">
    <h2>Calendar</h2>
@@ -22,7 +23,7 @@
             <table style="table-layout: fixed; margin-bottom: 0px" class="table table-striped table-bordered table-condensed">
                <tr>
                   <% DB.fetch BUILD_DAYS_QUERY do |build_date|%>
-                        <th style="width:60px; height:45px; padding-left: 0; padding-right: 0; text-align: center"> 
+                        <th style="width:60px; height:45px; padding-left: 0; padding-right: 0; text-align: center" title="<%= build_date[:build_date].strftime("%A, %B %-d, %Y") %>"> 
                            <%= build_date[:build_date].strftime("%m/%d") %>
                            <% if build_date[:optional] == 1 %>
                               <br/>
@@ -116,7 +117,7 @@
                   student = Student[row[:student_id]]
                   %>
                   <tr style="width: 410px">
-                     <td style="width:65px; height:30px;"><%=student.total_sessions_attended%></td>
+                     <td style="width:65px; height:30px;"><%=row[:total_attended_count]%></td>
                      <td style ="width:80px; height: 30px"><%=(100 * row[:required_attended_count].to_f/row[:required_count]).to_i rescue "0"%>%</td>
                      <td style="width:65px; height:30px;"><%=student.id%> </td>
                      <td 
@@ -126,9 +127,12 @@
                   </tr>
               <%end%>
             </table>
-            <% if @user.has_permission?("HOURS_VIEW_REPORT") %>
-      <h4><a href="/csv_attendance_report">Download CSV Report</a></h4>
-    <% end %>
+            <div style="display: flex; gap: 1.5em">
+               <% if @user.has_permission?("HOURS_VIEW_REPORT") %>
+                  <h4><a href="/csv_attendance_report">Download CSV Report</a></h4>
+               <% end %>
+               <h4><a href="/optionalize_past_offdays">Optionalize Past Off-days</a></h4>
+            </div>
         </div>
 </div>
 <script>

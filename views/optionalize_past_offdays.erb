@@ -1,0 +1,18 @@
+<%= erb :header %>
+
+<div class="container">
+  <h2>Are you sure you want to optionalize past off-days?</h2>
+  <form action="" method="POST">
+    <p>
+        This will mark all past off-days (<%=
+        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            .reject { |item| REQUIRED_BUILD_DAYS.include?(item) }.join(", ")
+        %>) where at least 1 student signed in as optional. You can always override this 
+        later from the calendar page.
+    </p>
+    <input type="submit" class="btn btn-success btn-medium" value="Confirm" />
+    <input type="hidden" name="referrer" value="<%= @referrer %>" />
+  </form>
+</div>
+
+<%= erb :footer %>
