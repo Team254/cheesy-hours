@@ -19,7 +19,7 @@ FROM
             COALESCE(filtered_table.sessions_attended_count, 0) AS sessions_attended_count,
             NOT ISNULL(filtered_table.time_in) AS attended,
             ISNULL(cheesy_frc_hours.optional_builds.date) AS required,
-            NOT ISNULL(ordered_excused_sessions.date) AS excused
+            NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused
     FROM
         (SELECT DISTINCT
         (CASE
@@ -59,8 +59,8 @@ FROM
         AND (HOUR(filtered_sessions.time_in) < 8) = build_days.prev_day
         AND NOT filtered_sessions.excluded_from_total) AS filtered_table
     LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date = filtered_table.build_date
-    LEFT JOIN (SELECT * FROM cheesy_frc_hours.excused_sessions ORDER BY date ASC, student_id DESC) AS ordered_excused_sessions ON ordered_excused_sessions.student_id=filtered_table.student_id
-		AND ordered_excused_sessions.date=filtered_table.build_date) AS ungrouped_table
+    LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id = filtered_table.student_id
+        AND cheesy_frc_hours.excused_sessions.date = filtered_table.build_date) AS ungrouped_table
 GROUP BY build_date , student_id
 ORDER BY build_date ASC , sessions_attended_count DESC , student_id DESC;  -- fallback if students are tied in lab sessions
 """
@@ -81,7 +81,7 @@ FROM
             filtered_table.student_id,
             NOT ISNULL(filtered_table.time_in) AS attended,
             ISNULL(cheesy_frc_hours.optional_builds.date) AS required,
-            NOT ISNULL(ordered_excused_sessions.date) AS excused
+            NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused
     FROM
         (SELECT DISTINCT
         (CASE
@@ -107,8 +107,8 @@ FROM
         AND DATE(filtered_sessions.time_in) = build_days.build_date
         AND NOT filtered_sessions.excluded_from_total) AS filtered_table
     LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date = filtered_table.build_date
-    LEFT JOIN (SELECT * FROM cheesy_frc_hours.excused_sessions ORDER BY date ASC, student_id DESC) AS ordered_excused_sessions ON ordered_excused_sessions.student_id=filtered_table.student_id
-		AND ordered_excused_sessions.date=filtered_table.build_date
+    LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id = filtered_table.student_id
+        AND cheesy_frc_hours.excused_sessions.date = filtered_table.build_date
     ORDER BY build_date ASC) AS build_info
     GROUP BY student_id) AS student_build_info
 ORDER BY total_attended_count DESC , student_id DESC;

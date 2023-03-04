@@ -11,7 +11,6 @@ require "sinatra/base"
 require "json"
 
 require "models"
-require "constants"
 require "queries"
 
 module CheesyHours
@@ -59,10 +58,6 @@ module CheesyHours
       end
       @student.add_lab_session(:time_in => Time.now)
 
-      if !REQUIRED_BUILD_DAYS.include?(DateTime.now.in_time_zone("America/Los_Angeles").strftime("%A"))
-        OptionalBuild.create(:date => DateTime.now.in_time_zone("America/Los_Angeles").strftime("%Y-%m-%d")) rescue nil
-      end
-
       redirect "/"
     end
 
@@ -86,24 +81,6 @@ module CheesyHours
     get "/calendar" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       erb :calendar
-    end
-
-    get "/optionalize_past_offdays" do 
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      @referrer = request.referrer
-      erb :optionalize_past_offdays
-    end
-
-    post "/optionalize_past_offdays" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-
-      DB.fetch BUILD_DAYS_QUERY do |row|
-        if !REQUIRED_BUILD_DAYS.include?(row[:build_date].strftime("%A"))
-          OptionalBuild.create(:date => row[:build_date]) rescue nil
-        end
-      end
-
-      redirect params[:referrer]
     end
 
     get "/schedule_optional" do
