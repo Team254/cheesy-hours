@@ -6,7 +6,7 @@
     <p>
         This will mark all past off-days (<%=
         ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-            .reject { |item| REQUIRED_BUILD_DAYS.include?(item) }.join(", ")
+            .reject { |item| REQUIRED_BUILD_DAYS.include?(item) }.join("s, ") + "s"
         %>) where at least 1 student signed in as optional. You can always override this 
         later from the calendar page.
     </p>
