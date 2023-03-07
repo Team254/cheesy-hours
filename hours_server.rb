@@ -59,8 +59,9 @@ module CheesyHours
       end
       @student.add_lab_session(:time_in => Time.now)
 
-      if !REQUIRED_BUILD_DAYS.include?(DateTime.now.in_time_zone("America/Los_Angeles").strftime("%A"))
-        OptionalBuild.create(:date => DateTime.now.in_time_zone("America/Los_Angeles").strftime("%Y-%m-%d")) rescue nil
+      if !REQUIRED_BUILD_DAYS.include?(DateTime.now.in_time_zone("America/Los_Angeles").strftime("%A")) && 
+          OptionalBuild.where(:date => params[:date]).empty?
+        OptionalBuild.create(:date => DateTime.now.in_time_zone("America/Los_Angeles").strftime("%Y-%m-%d"))
       end
 
       redirect "/"
