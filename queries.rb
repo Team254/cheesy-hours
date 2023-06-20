@@ -9,7 +9,7 @@ ORDER BY build_date ASC;
 """
 
 CALENDAR_BUILD_INFO_QUERY = """
-SELECT 
+SELECT
 	filtered_table.build_date,
 		filtered_table.student_id,
 		filtered_table.session_id,
@@ -32,11 +32,11 @@ FROM
 	cheesy_frc_hours.lab_sessions
 WHERE
 	NOT excluded_from_total) AS build_days
-CROSS JOIN (SELECT 
+CROSS JOIN (SELECT
 	id AS student_id, counts.sessions_attended_count
 FROM
 	cheesy_frc_hours.students
-LEFT JOIN (SELECT 
+LEFT JOIN (SELECT
 	COUNT(*) AS sessions_attended_count, student_id
 FROM
 	(SELECT DISTINCT
@@ -45,7 +45,7 @@ FROM
 	cheesy_frc_hours.lab_sessions
 GROUP BY DATE(DATE_SUB(time_in, INTERVAL 8 HOUR)) , student_id) AS condensed_sessions
 GROUP BY student_id) AS counts ON cheesy_frc_hours.students.id = counts.student_id) AS ordered_students
-LEFT JOIN (SELECT 
+LEFT JOIN (SELECT
 	time_in, student_id, id, excluded_from_total
 FROM
 	cheesy_frc_hours.lab_sessions) AS filtered_sessions ON filtered_sessions.student_id = ordered_students.student_id
@@ -57,9 +57,13 @@ LEFT JOIN (SELECT * FROM cheesy_frc_hours.excused_sessions ORDER BY date ASC, st
 GROUP BY build_date, student_id
 ORDER BY build_date ASC , sessions_attended_count DESC , student_id DESC;  -- fallback if students are tied in lab sessions
 """
+# Note: The above query is incompatible with MySQL 5.7 and greater because
+# the SQL mode "ONLY_FULL_GROUP_BY" became enabled by default. As a workaround,
+# execute a query like "SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));"
+# before loading the calendar page, which will temporarily remove this setting.
 
 CALENDAR_STUDENT_INFO_QUERY = """
-SELECT 
+SELECT
         COUNT(IF(required
                 AND (NOT excused OR (excused AND attended)), 1, NULL)) AS required_count,
             COUNT(IF(attended AND required, 1, NULL)) AS required_attended_count,
@@ -87,7 +91,7 @@ SELECT
     WHERE
         NOT excluded_from_total) AS build_days
     CROSS JOIN cheesy_frc_hours.students
-    LEFT JOIN (SELECT 
+    LEFT JOIN (SELECT
         time_in, student_id, id, excluded_from_total
     FROM
         cheesy_frc_hours.lab_sessions) AS filtered_sessions ON filtered_sessions.student_id = cheesy_frc_hours.students.id

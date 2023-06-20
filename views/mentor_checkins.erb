@@ -14,7 +14,7 @@
         <% @mentor_checkins.each do |checkin| %>
           <tr>
             <td><%= checkin.mentor.first_name %> <%= checkin.mentor.last_name %></td>
-            <td><%= checkin.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
+            <td><%= checkin.time_in.in_time_zone(USER_TIME_ZONE).strftime("%D %l:%M %p") %></td>
             <td>
               <span style="white-space: nowrap;">
                 <a href="/mentor_checkins/<%= checkin.id %>/delete" class="btn btn-danger btn-small">Delete</a>

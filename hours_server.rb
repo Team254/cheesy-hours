@@ -59,9 +59,12 @@ module CheesyHours
       end
       @student.add_lab_session(:time_in => Time.now)
 
-      if !REQUIRED_BUILD_DAYS.include?(DateTime.now.in_time_zone("America/Los_Angeles").strftime("%A")) && 
-          OptionalBuild.where(:date => params[:date]).empty?
-        OptionalBuild.create(:date => DateTime.now.in_time_zone("America/Los_Angeles").strftime("%Y-%m-%d"))
+      # Add an optional build to the database if necessary.
+      # (If today is not mandatory and the optional build is not in the database)
+      currentUserTime = DateTime.now.in_time_zone(USER_TIME_ZONE)
+      if REQUIRED_BUILD_DAYS.include?(currentUserTime.strftime("%A")) &&
+          OptionalBuild.where(:date => currentUserTime.strftime("%Y-%m-%d")).empty?
+        OptionalBuild.create(:date => currentUserTime.strftime("%Y-%m-%d"))
       end
 
       redirect "/"
@@ -89,7 +92,7 @@ module CheesyHours
       erb :calendar
     end
 
-    get "/optionalize_past_offdays" do 
+    get "/optionalize_past_offdays" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @referrer = request.referrer
       erb :optionalize_past_offdays
@@ -194,7 +197,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
-      student.add_lab_session(:time_in => DateTime.parse(params[:time_in]).utc, 
+      student.add_lab_session(:time_in => DateTime.parse(params[:time_in]).utc,
                               :time_out => DateTime.parse(params[:time_out]).utc,
                               :notes => params[:notes],
                               :mentor_name => params[:time_out].empty? ? nil : @user.name_display)
@@ -220,7 +223,7 @@ module CheesyHours
       else
         mentor_name = @lab_session.mentor_name
       end
-      @lab_session.update(:time_in => DateTime.parse(params[:time_in]).utc, 
+      @lab_session.update(:time_in => DateTime.parse(params[:time_in]).utc,
                           :time_out => DateTime.parse(params[:time_out]).utc,
                           :notes => params[:notes], :mentor_name => mentor_name)
       redirect params[:referrer] || "/leader_board"
@@ -322,7 +325,7 @@ module CheesyHours
       @start = params[:start_date]
       @end = params[:end_date]
       begin
-        offset = Time.now.in_time_zone('America/Los_Angeles').formatted_offset
+        offset = Time.now.in_time_zone(USER_TIME_ZONE).formatted_offset
         start_date = DateTime.parse(@start).change(offset: offset)
         end_date = DateTime.parse(@end == "" ? @start : @end).change(offset: offset) + 1
       rescue
