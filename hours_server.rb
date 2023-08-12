@@ -23,7 +23,7 @@ module CheesyHours
         session[:user] = nil
         # Note: signin_internal blocks all outside sources (localhost only)
         unless ["/", "/sms", "/signin_internal"].include?(request.path)
-          redirect "#{CheesyCommon::Config.members_url}?site=vexhours&path=#{request.path}"
+          redirect "#{CheesyCommon::Config.members_url}?site=ftchours&path=#{request.path}"
         end
       else
           session[:user] = @user

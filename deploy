@@ -3,9 +3,9 @@ set -e
 
 USER=team254
 HOST=ec2.team254.com
-APP=vex-hours
+APP=ftc-hours
 SCRIPT_NAME=hours_server
-BRANCH=vex
+BRANCH=ftc
 
 echo "Deploying $APP from Git $BRANCH branch..."
 echo
