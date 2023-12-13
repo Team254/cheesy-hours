@@ -1,0 +1,42 @@
+<%= erb :header %>
+
+<div class="container">
+    <h2>Suspect Lab Sessions</h2>
+    <table class="table table-striped table-bordered table-condensed">
+      <tr>
+        <th>Student</th>
+        <th>Time In</th>
+        <th>Time Out</th>
+        <th>Project Hours</th>
+        <th>Signed Out By</th>
+        <th>Excluded From Total</th>
+        <th>Notes</th>
+        <th>Action</th>
+      </tr>
+      <% LabSession.all.select { |s| s.duration_hours > 18 }.sort_by(&:duration_hours).reverse.each do |session| %>
+        <tr>
+          <td><%= session.student.first_name %> <%= session.student.last_name %></td>
+          <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %></td>
+          <td>
+            <%= session.time_out.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %>
+          </td>
+          <td><%= session.duration_hours.round(1) %></td>
+          <td><%= session.mentor ? "#{session.mentor.first_name} #{session.mentor.last_name}" :
+              session.mentor_name %></td>
+          <td><%= session.excluded_from_total %></td>
+          <td><%= session.notes %></td>
+          <% if @user.has_permission?("HOURS_EDIT") %>
+            <td>
+              <span style="white-space: nowrap;">
+                <a href="/lab_sessions/<%= session.id %>/edit" class="btn btn-primary btn-small">Edit</a>
+                <a href="/lab_sessions/<%= session.id %>/delete" class="btn btn-danger btn-small">Delete</a>
+              </span>
+            </td>
+          <% end %>
+        </tr>
+      <% end %>
+    </table>
+  </div>
+</div>
+
+<%= erb :footer %>

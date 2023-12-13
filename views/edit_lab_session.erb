@@ -20,6 +20,9 @@
         />
     <label>Notes (e.g. description of non-lab work)</label>
     <textarea name="notes"><%= @lab_session.notes rescue "" %></textarea>
+    <label>Excluded from total?</label>
+    <input type="checkbox" name="excluded_from_total"<%= " checked" if @lab_session.excluded_from_total %> />
+    <br /><br />
     <label><input type="submit" class="btn btn-success btn-medium" value="Save"></label>
   </form>
 </div>
