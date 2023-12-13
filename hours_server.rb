@@ -223,9 +223,13 @@ module CheesyHours
       else
         mentor_name = @lab_session.mentor_name
       end
-      @lab_session.update(:time_in => DateTime.parse(params[:time_in]).utc,
-                          :time_out => DateTime.parse(params[:time_out]).utc,
-                          :notes => params[:notes], :mentor_name => mentor_name)
+      @lab_session.update(
+        :time_in => DateTime.parse(params[:time_in]).utc,
+        :time_out => DateTime.parse(params[:time_out]).utc,
+        :notes => params[:notes],
+        :mentor_name => mentor_name,
+        :excluded_from_total => params[:excluded_from_total] == "on"
+      )
       redirect params[:referrer] || "/leader_board"
     end
 
@@ -313,6 +317,11 @@ module CheesyHours
       halt(400, "Invalid mentor_checkin.") if mentor_checkin.nil?
       mentor_checkin.delete
       redirect params[:referrer] || "/mentor_checkins"
+    end
+
+    get "/suspect_lab_sessions" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      erb :suspect_lab_sessions
     end
 
     get "/search" do
@@ -433,7 +442,6 @@ module CheesyHours
       end
       rows.join("\n")
     end
-
 
     get "/reset_hours" do
       unless @user.has_permission?("DATABASE_ADMIN")
