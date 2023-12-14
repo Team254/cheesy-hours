@@ -23,9 +23,9 @@
       </tr>
       <% @student.lab_sessions.sort_by(&:id).each do |session| %>
         <tr>
-          <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %></td>
+          <td><%= session.time_in.in_time_zone(USER_TIME_ZONE).strftime("%D %l:%M %p") rescue "" %></td>
           <td>
-            <%= session.time_out.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %>
+            <%= session.time_out.in_time_zone(USER_TIME_ZONE).strftime("%D %l:%M %p") rescue "" %>
           </td>
           <td><%= session.duration_hours.round(1) %></td>
           <td><%= session.mentor ? "#{session.mentor.first_name} #{session.mentor.last_name}" :

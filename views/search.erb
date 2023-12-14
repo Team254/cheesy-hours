@@ -6,7 +6,7 @@
     <label>Leave End Date empty to search for one day.</label>
     <p id="query">
       <input class="form-control input-lg text-input" name="start_date" value="<%= @start %>" placeholder="Start Date (yyyy-mm-dd)" autofocus>
-       to 
+       to
       <input class="form-control input-lg text-input" name="end_date" value="<%= @end %>" placeholder="End Date (yyyy-mm-dd)">
     </p>
     <button type="submit" class="btn btn-success btn-lg" id="scanSubmit">Search</button>
@@ -26,9 +26,9 @@
           <td>
             <a href="/students/<%= session.student.id %>"><%= session.student.first_name %> <%= session.student.last_name %></a>
           </td>
-          <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %></td>
+          <td><%= session.time_in.in_time_zone(USER_TIME_ZONE).strftime("%D %l:%M %p") rescue "" %></td>
           <td>
-            <%= session.time_out.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %>
+            <%= session.time_out.in_time_zone(USER_TIME_ZONE).strftime("%D %l:%M %p") rescue "" %>
           </td>
           <td><%= session.duration_hours.round(1) %></td>
           <td><%= session.mentor ? "#{session.mentor.first_name} #{session.mentor.last_name}" :
