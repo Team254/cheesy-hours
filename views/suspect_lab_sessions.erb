@@ -13,7 +13,8 @@
         <th>Notes</th>
         <th>Action</th>
       </tr>
-      <% LabSession.all.select { |s| s.duration_hours > 18 }.sort_by(&:duration_hours).reverse.each do |session| %>
+      <% LabSession.where(excluded_from_total: false).all.select { |s| s.duration_hours > 18 }.
+        sort_by(&:duration_hours).reverse.each do |session| %>
         <tr>
           <td><%= session.student.first_name %> <%= session.student.last_name %></td>
           <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") rescue "" %></td>
