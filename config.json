@@ -13,6 +13,6 @@
   "prod": {
     "db_password": "Encrypted:0iYLP6HuJ7qY1/BtUYAQ+Q==\n",
     "members_url": "https://members.team254.com",
-    "signin_ip_whitelist": ["64.62.178.135", "64.62.178.156", "64.62.178.158"]
+    "signin_ip_whitelist": ["64.62.178.135", "64.62.178.156", "64.62.178.158", "40.133.254.5"]
   }
 }
