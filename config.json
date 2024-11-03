@@ -3,7 +3,8 @@
     "db_host": "localhost",
     "db_user": "team254",
     "db_database": "cheesy_vex_hours",
-    "port": 9009
+    "port": 9009,
+    "automatic_signout_offset_hours": -6
   },
   "dev": {
     "db_password": "correcthorsebatterystaple",
