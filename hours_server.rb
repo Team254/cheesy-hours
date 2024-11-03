@@ -23,7 +23,7 @@ module CheesyHours
       if @user.nil?
         session[:user] = nil
         # Note: signin_internal blocks all outside sources (localhost only)
-        unless ["/", "/sms", "/signin_internal"].include?(request.path)
+        unless ["/", "/sms", "/signin_internal", "/signout_automatic"].include?(request.path)
           redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
         end
       else
@@ -450,6 +450,20 @@ module CheesyHours
 
       DB[:lab_sessions].where(Sequel[:time_out] < DateTime.new(2018, 1, 6.0)).delete
       "Reset Hours"
+    end
+
+    get "/signout_automatic" do
+      unless request.env["HTTP_X_REAL_IP"].nil?
+        halt(400, "Invalid IP address; this route must be triggered internally.")
+      end
+
+      LabSession.where(:time_out => nil).each do |lab_session|
+        offset_hours = CheesyCommon::Config.automatic_signout_offset_hours
+        offset_hours -= 1 if Time.now.in_time_zone(USER_TIME_ZONE).dst?
+        signout_time = Time.now + offset_hours * 3600
+
+        lab_session.update(:time_out => signout_time, :mentor_name => "Automatic - Didn't Sign Out")
+      end
     end
   end
 end
