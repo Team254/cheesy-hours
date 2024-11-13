@@ -332,7 +332,7 @@ module CheesyHours
 
       LabSession.where(:time_out => nil).each do |lab_session|
         offset_hours = CheesyCommon::Config.automatic_signout_offset_hours
-        offset_hours -= 1 if Time.now.in_time_zone(USER_TIME_ZONE).dst?
+        offset_hours -= 1 if Time.now.in_time_zone("America/Los_Angeles").dst?
         signout_time = Time.now + offset_hours * 3600
 
         lab_session.update(:time_out => signout_time, :mentor_name => "Automatic - Didn't Sign Out")
