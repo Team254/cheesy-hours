@@ -140,7 +140,6 @@ module CheesyHours
       redirect params[:referrer]
     end
 
-
     get "/students/:id" do
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?

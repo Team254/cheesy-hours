@@ -4,7 +4,7 @@
     "db_user": "team254",
     "db_database": "cheesy_frc_hours",
     "port": 9006,
-    "automatic_signout_offset_hours": -3
+    "automatic_signout_offset_hours": -2
   },
   "dev": {
     "db_password": "correcthorsebatterystaple",
