@@ -16,9 +16,21 @@ require "queries"
 
 module CheesyHours
   class Server < Sinatra::Base
+    DevUser = Struct.new(:name_display) do
+      def has_permission?(_permission)
+        true
+      end
+    end
+
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
     # Enforce authentication for all non-public routes.
     before do
+      if ENV["DISABLE_AUTH"] == "1"
+        @user = DevUser.new("Dev User")
+        session[:user] = @user
+        next
+      end
+
       @user = CheesyCommon::Auth.get_user(request)
       if @user.nil?
         session[:user] = nil
