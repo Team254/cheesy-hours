@@ -210,7 +210,6 @@ module CheesyHours
 
       redirect params[:referrer]
     end
-
     get "/schedule_build_day" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @referrer = request.referrer
@@ -258,7 +257,6 @@ module CheesyHours
       
       erb :my_attendance
     end
-
     get "/students/:id" do
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
