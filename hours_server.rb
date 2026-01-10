@@ -140,6 +140,24 @@ module CheesyHours
       redirect params[:referrer]
     end
 
+    get "/schedule_build_day" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      @referrer = request.referrer
+      @date = params[:date]
+      erb :schedule_build_day
+    end
+
+    post "/schedule_build_day" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(400, "Invalid date.") if params[:date].nil? || params[:date] == ""
+      halt(400, "Invalid optional value.") if params[:optional].nil?
+
+      optional = params[:optional] == "1" || params[:optional] == "true"
+      ScheduledBuildDay.create(:date => params[:date], :optional => optional) if ScheduledBuildDay.where(:date => params[:date]).empty?
+
+      redirect params[:referrer]
+    end
+
     get "/students/:id" do
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
