@@ -21,7 +21,6 @@ module CheesyHours
         true
       end
     end
-
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
 
     configure do
