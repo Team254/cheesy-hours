@@ -16,6 +16,12 @@ require "queries"
 
 module CheesyHours
   class Server < Sinatra::Base
+    DevUser = Struct.new(:name_display, :bcp_id) do
+      def has_permission?(_permission)
+        true
+      end
+    end
+
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
 
     configure do
@@ -28,7 +34,11 @@ module CheesyHours
     end
     # Enforce authentication for all non-public routes.
     before do
-      if ENV["HOURS_BYPASS_AUTH"] == "1"
+      if ENV["DISABLE_AUTH"] == "1"
+        dev_bcp_id = (ENV["HOURS_BYPASS_BCP_ID"] || "900001").to_i
+        @user = DevUser.new("Dev User", dev_bcp_id)
+        session[:user] = @user
+      elsif ENV["HOURS_BYPASS_AUTH"] == "1"
         # Local dev bypass for Team 254 SSO.
         dev_bcp_id = (ENV["HOURS_BYPASS_BCP_ID"] || "900001").to_i
         @user = CheesyCommon::User.new(
@@ -46,7 +56,7 @@ module CheesyHours
             redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
           end
         else
-            session[:user] = @user
+          session[:user] = @user
         end
       end
     end
