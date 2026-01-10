@@ -16,21 +16,9 @@ require "queries"
 
 module CheesyHours
   class Server < Sinatra::Base
-    DevUser = Struct.new(:name_display) do
-      def has_permission?(_permission)
-        true
-      end
-    end
-
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
     # Enforce authentication for all non-public routes.
     before do
-      if ENV["DISABLE_AUTH"] == "1"
-        @user = DevUser.new("Dev User")
-        session[:user] = @user
-        next
-      end
-
       @user = CheesyCommon::Auth.get_user(request)
       if @user.nil?
         session[:user] = nil
@@ -170,6 +158,7 @@ module CheesyHours
     end
 
     post "/students/:id/mark_excused" do
+      date  Date.strptime(params[:date], "%Y-%m-%d") rescue nil
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       halt(400, "Missing date.") if params[:date].nil? || params[:date] == ""
       ExcusedSession.create(:date => params[:date], :student_id => params[:id])
@@ -178,7 +167,7 @@ module CheesyHours
 
     get "/students/:id/excusals/:date/delete" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      @excusal = ExcusedSession.where(:date => params[:date], :student_id => :id)
+      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id])
       halt(400, "Invalid excusal.") if @excusal.nil?
       @referrer = request.referrer
       erb :delete_excusal
