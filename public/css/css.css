@@ -221,6 +221,13 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
     padding: 0px;
 }
 
+#calendar-date-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: white;
+}
+
 /* Clearfix (clear floats) */
 .row::after {
     content: "";
