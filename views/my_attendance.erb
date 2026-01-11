@@ -2,6 +2,7 @@
 <% range_start = @semester_start.strftime("%Y-%m-%d") %>
 <% range_end = @semester_end.strftime("%Y-%m-%d") %>
 <% semester_name = @semester.capitalize %>
+<% hide_optional = 0 %>
 <% DB.fetch "SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));" do end %>
 
 <div class="container">
@@ -58,7 +59,7 @@
       <th>Status</th>
       <th>Type</th>
     </tr>
-    <% DB.fetch BUILD_DAYS_RANGE_QUERY, range_start, range_end do |build_date| %>
+    <% DB.fetch BUILD_DAYS_RANGE_QUERY, range_start, range_end, hide_optional do |build_date| %>
       <% date_str = build_date[:build_date].strftime("%Y-%m-%d") %>
       <% session = @student.lab_sessions.select { |s| s.time_out && !s.excluded_from_total && s.time_in.strftime("%Y-%m-%d") == date_str }.first %>
       <% excused = @student.excused_sessions.select { |e| e.date.strftime("%Y-%m-%d") == date_str }.first %>

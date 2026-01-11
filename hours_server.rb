@@ -30,8 +30,10 @@ module CheesyHours
     before do
       if ENV["HOURS_BYPASS_AUTH"] == "1"
         # Local dev bypass for Team 254 SSO.
+        dev_bcp_id = (ENV["HOURS_BYPASS_BCP_ID"] || "900001").to_i
         @user = CheesyCommon::User.new(
           "name_display" => "Dev User",
+          "bcp_id" => dev_bcp_id,
           "permissions" => ["HOURS_SIGN_IN", "HOURS_EDIT", "HOURS_DELETE", "HOURS_VIEW_REPORT", "DATABASE_ADMIN"]
         )
         session[:user] = @user
