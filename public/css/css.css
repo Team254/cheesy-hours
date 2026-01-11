@@ -221,11 +221,25 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
     padding: 0px;
 }
 
-#calendar-date-header {
+#calendar-header-sticky {
     position: sticky;
     top: 0;
     z-index: 10;
     background-color: white;
+}
+
+#calendar-header-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+
+#calendar-header-scroll::-webkit-scrollbar {
+    height: 0;
+}
+
+#calendar-grid-scroll {
+    overflow-x: auto;
 }
 
 /* Clearfix (clear floats) */
