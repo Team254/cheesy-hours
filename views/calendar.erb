@@ -2,6 +2,7 @@
 <% range_start = @semester_start.strftime("%Y-%m-%d") %>
 <% range_end = @semester_end.strftime("%Y-%m-%d") %>
 <% semester_name = @semester.capitalize %>
+<% hide_optional = @hide_optional ? 1 : 0 %>
 <% DB.fetch "SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));" do end %>
 <div class="container container-wide">
    <div style="display: flex; align-items: flex-start; flex-direction: column; gap: 0.5rem">
@@ -15,6 +16,10 @@
       </select>
       <label for="semester-year" style="margin: 0;">Year</label>
       <input id="semester-year" name="year" type="number" value="<%= @semester_year %>" min="2000" max="2100" style="width: 6rem; margin: 0;" />
+      <label style="margin: 0;">
+         <input type="checkbox" name="hide_optional" value="1" <%= "checked" if @hide_optional %> />
+         Hide optional builds
+      </label>
       <button type="submit" class="btn btn-small">Apply</button>
       <small>Range: <%= semester_name %> <%= @semester_year %> (<%= @semester_start.strftime("%b %-d") %> - <%= @semester_end.strftime("%b %-d") %>)</small>
    </form>
@@ -37,7 +42,7 @@
          <div>
             <table style="table-layout: fixed; margin-bottom: 0px" class="table table-striped table-bordered table-condensed" id="calendar-date-header">
                <tr>
-                  <% DB.fetch BUILD_DAYS_RANGE_QUERY, range_start, range_end do |build_date| %>
+                  <% DB.fetch BUILD_DAYS_RANGE_QUERY, range_start, range_end, hide_optional do |build_date| %>
                         <th style="width:60px; height:45px; padding-left: 0; padding-right: 0; text-align: center" title="<%= build_date[:build_date].strftime("%A, %B %-d, %Y") %>">
                            <%= build_date[:build_date].strftime("%m/%d") %>
                            <% if build_date[:optional] == 1 %>
@@ -47,6 +52,10 @@
                               <br/>
                               <a href="/schedule_optional?date=<%=build_date[:build_date]%>" class="visible-if-parent-hover"><small style="font-size: 0.65em; padding: 0px 8px;">+optional</small></a>
                            <% end %>
+                           <% if @user.has_permission?("DATABASE_ADMIN") %>
+                              <br/>
+                              <a href="/build_days/<%=build_date[:build_date]%>/delete" class="visible-if-parent-hover"><small style="font-size: 0.65em; padding: 0px 8px;">delete day</small></a>
+                           <% end %>
                         </th>
                   <% end %>
                </tr>
@@ -54,7 +63,7 @@
             <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed column-based" id="color-grid">
                <% studentsCnt = Student.count %>
                <% rowNum = 1 %>
-               <% DB.fetch CALENDAR_BUILD_INFO_RANGE_QUERY, range_start, range_end, range_start, range_end do |row| %>
+               <% DB.fetch CALENDAR_BUILD_INFO_RANGE_QUERY, range_start, range_end, hide_optional do |row| %>
                    <% student_id = row[:student_id] %>
                    <% session_id = row[:session_id] rescue nil %>
                    <% build_date = row[:build_date] %>
@@ -127,7 +136,7 @@
                 <th style="width:65px; height:45px; text-align: center">Student ID</th>
                 <th style="width:200px; height:45px; text-align: center">Name (Unexcused)</th>
                </tr>
-               <% DB.fetch CALENDAR_STUDENT_INFO_RANGE_QUERY, range_start, range_end do |row|
+               <% DB.fetch CALENDAR_STUDENT_INFO_RANGE_QUERY, range_start, range_end, hide_optional do |row|
                   student = Student[row[:student_id]]
                   %>
                   <tr style="width: 410px">

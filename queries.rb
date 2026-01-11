@@ -49,6 +49,12 @@ FROM
     LEFT JOIN cheesy_frc_hours.scheduled_build_days ON cheesy_frc_hours.scheduled_build_days.date=all_build_days.build_date
 WHERE
     all_build_days.build_date BETWEEN ? AND ?
+    AND (
+        ? = 0
+        OR (cheesy_frc_hours.optional_builds.date IS NULL
+            AND (cheesy_frc_hours.scheduled_build_days.optional IS NULL
+                OR cheesy_frc_hours.scheduled_build_days.optional = 0))
+    )
 ORDER BY build_date ASC;
 """
 
@@ -119,17 +125,27 @@ WITH
         SELECT build_date FROM scheduled_build_days
     ),
     filtered_build_days AS (
-        SELECT build_date FROM build_days WHERE build_date BETWEEN ? AND ?
+        SELECT build_days.build_date
+        FROM build_days
+        LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=build_days.build_date
+        LEFT JOIN cheesy_frc_hours.scheduled_build_days ON cheesy_frc_hours.scheduled_build_days.date=build_days.build_date
+        WHERE build_days.build_date BETWEEN ? AND ?
+            AND (
+                ? = 0
+                OR (cheesy_frc_hours.optional_builds.date IS NULL
+                    AND (cheesy_frc_hours.scheduled_build_days.optional IS NULL
+                        OR cheesy_frc_hours.scheduled_build_days.optional = 0))
+            )
     ),
     ordered_students AS (
         WITH counts AS (
             SELECT
                 COUNT(*) as sessions_attended_count,
-                student_id
+                cheesy_frc_hours.lab_sessions.student_id
             FROM cheesy_frc_hours.lab_sessions
-            WHERE NOT excluded_from_total
-                AND DATE(time_in) BETWEEN ? AND ?
-            GROUP BY student_id
+            JOIN filtered_build_days ON DATE(cheesy_frc_hours.lab_sessions.time_in) = filtered_build_days.build_date
+            WHERE NOT cheesy_frc_hours.lab_sessions.excluded_from_total
+            GROUP BY cheesy_frc_hours.lab_sessions.student_id
         )
         SELECT
             id as student_id,
@@ -226,7 +242,17 @@ WITH build_info AS (
             SELECT build_date FROM scheduled_build_days
         ),
         filtered_build_days AS (
-            SELECT build_date FROM build_days WHERE build_date BETWEEN ? AND ?
+            SELECT build_days.build_date
+            FROM build_days
+            LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=build_days.build_date
+            LEFT JOIN cheesy_frc_hours.scheduled_build_days ON cheesy_frc_hours.scheduled_build_days.date=build_days.build_date
+            WHERE build_days.build_date BETWEEN ? AND ?
+                AND (
+                    ? = 0
+                    OR (cheesy_frc_hours.optional_builds.date IS NULL
+                        AND (cheesy_frc_hours.scheduled_build_days.optional IS NULL
+                            OR cheesy_frc_hours.scheduled_build_days.optional = 0))
+                )
         )
     SELECT DISTINCT
         filtered_build_days.build_date,

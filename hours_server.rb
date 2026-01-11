@@ -17,6 +17,15 @@ require "queries"
 module CheesyHours
   class Server < Sinatra::Base
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
+
+    configure do
+      if ENV["HOURS_AUTO_SEED_TEST_STUDENTS"] == "1"
+        require_relative "script/seed_test_students"
+        count = (ENV["COUNT"] || "30").to_i
+        start_id = (ENV["START_ID"] || "900000").to_i
+        SeedTestStudents.run(count: count, start_id: start_id)
+      end
+    end
     # Enforce authentication for all non-public routes.
     before do
       if ENV["HOURS_BYPASS_AUTH"] == "1"
@@ -107,6 +116,7 @@ module CheesyHours
                                                                                             end
       requested_year = params[:year].to_i
       @semester_year = requested_year > 0 ? requested_year : today.year
+      @hide_optional = ["1", "true", "on"].include?(params[:hide_optional].to_s)
 
       case @semester
       when "fall"
@@ -166,6 +176,26 @@ module CheesyHours
     post "/delete_optional/:date" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       OptionalBuild.where(:date => params[:date]).delete
+
+      redirect params[:referrer]
+    end
+
+    get "/build_days/:date/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+      @referrer = request.referrer
+      @date = params[:date]
+      erb :delete_build_day
+    end
+
+    post "/build_days/:date/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+      date = params[:date]
+      halt(400, "Invalid date.") if date.nil? || date == ""
+
+      OptionalBuild.where(:date => date).delete
+      ScheduledBuildDay.where(:date => date).delete
+      ExcusedSession.where(:date => date).delete
+      LabSession.where(Sequel.lit("DATE(time_in) = ?", date)).update(:excluded_from_total => true)
 
       redirect params[:referrer]
     end
