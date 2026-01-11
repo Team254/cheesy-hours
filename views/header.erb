@@ -25,6 +25,9 @@
       <a class="brand" href="/">Cheesy Hours</a>
       <ul class="nav">
         <li><a href="/leader_board">Leader Board</a></li>
+        <% if @user %>
+          <li><a href="/my_attendance">My Attendance</a></li>
+        <% end %>
         <% if @user && @user.has_permission?("HOURS_EDIT") %>
         <li><a href="/calendar">Calendar</a></li>
           <li class="dropdown">
