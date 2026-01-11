@@ -221,6 +221,35 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
     padding: 0px;
 }
 
+#calendar-header-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #fff;
+}
+
+#calendar-header-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    width: 100%;
+}
+
+#calendar-header-scroll::-webkit-scrollbar {
+    height: 0;
+}
+
+#calendar-grid-scroll {
+    overflow-x: auto;
+    width: 100%;
+}
+
+.student-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background-color: #fff;
+}
+
 /* Clearfix (clear floats) */
 .row::after {
     content: "";

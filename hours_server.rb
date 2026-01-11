@@ -17,17 +17,37 @@ require "queries"
 module CheesyHours
   class Server < Sinatra::Base
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
+
+    configure do
+      if ENV["HOURS_AUTO_SEED_TEST_STUDENTS"] == "1"
+        require_relative "script/seed_test_students"
+        count = (ENV["COUNT"] || "30").to_i
+        start_id = (ENV["START_ID"] || "900000").to_i
+        SeedTestStudents.run(count: count, start_id: start_id)
+      end
+    end
     # Enforce authentication for all non-public routes.
     before do
-      @user = CheesyCommon::Auth.get_user(request)
-      if @user.nil?
-        session[:user] = nil
-        # Note: signin_internal blocks all outside sources (localhost only)
-        unless ["/", "/sms", "/signin_internal", "/signout_automatic"].include?(request.path)
-          redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
-        end
+      if ENV["HOURS_BYPASS_AUTH"] == "1"
+        # Local dev bypass for Team 254 SSO.
+        dev_bcp_id = (ENV["HOURS_BYPASS_BCP_ID"] || "900001").to_i
+        @user = CheesyCommon::User.new(
+          "name_display" => "Dev User",
+          "bcp_id" => dev_bcp_id,
+          "permissions" => ["HOURS_SIGN_IN", "HOURS_EDIT", "HOURS_DELETE", "HOURS_VIEW_REPORT", "DATABASE_ADMIN"]
+        )
+        session[:user] = @user
       else
-          session[:user] = @user
+        @user = CheesyCommon::Auth.get_user(request)
+        if @user.nil?
+          session[:user] = nil
+          # Note: signin_internal blocks all outside sources (localhost only)
+          unless ["/", "/sms", "/signin_internal", "/signout_automatic"].include?(request.path)
+            redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
+          end
+        else
+            session[:user] = @user
+        end
       end
     end
 
@@ -89,6 +109,28 @@ module CheesyHours
 
     get "/calendar" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      today = Date.today
+      requested_semester = params[:semester].to_s.downcase
+      @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
+                                                                                            when 1..5 then "spring"
+                                                                                            when 6..7 then "summer"
+                                                                                            else "fall"
+                                                                                            end
+      requested_year = params[:year].to_i
+      @semester_year = requested_year > 0 ? requested_year : today.year
+      @hide_optional = ["1", "true", "on"].include?(params[:hide_optional].to_s)
+
+      case @semester
+      when "fall"
+        @semester_start = Date.new(@semester_year, 8, 1)
+        @semester_end = Date.new(@semester_year, 12, 31)
+      when "spring"
+        @semester_start = Date.new(@semester_year, 1, 1)
+        @semester_end = Date.new(@semester_year, 5, 31)
+      else
+        @semester_start = Date.new(@semester_year, 6, 1)
+        @semester_end = Date.new(@semester_year, 7, 31)
+      end
       erb :calendar
     end
 
@@ -140,6 +182,74 @@ module CheesyHours
       redirect params[:referrer]
     end
 
+    get "/build_days/:date/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+      @referrer = request.referrer
+      @date = params[:date]
+      erb :delete_build_day
+    end
+
+    post "/build_days/:date/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+      date = params[:date]
+      halt(400, "Invalid date.") if date.nil? || date == ""
+
+      OptionalBuild.where(:date => date).delete
+      ScheduledBuildDay.where(:date => date).delete
+      ExcusedSession.where(:date => date).delete
+      LabSession.where(Sequel.lit("DATE(time_in) = ?", date)).update(:excluded_from_total => true)
+
+      redirect params[:referrer]
+    end
+
+    get "/schedule_build_day" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      @referrer = request.referrer
+      @date = params[:date]
+      erb :schedule_build_day
+    end
+
+    post "/schedule_build_day" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(400, "Invalid date.") if params[:date].nil? || params[:date] == ""
+      halt(400, "Invalid optional value.") if params[:optional].nil?
+
+      optional = params[:optional] == "1" || params[:optional] == "true"
+      ScheduledBuildDay.create(:date => params[:date], :optional => optional) if ScheduledBuildDay.where(:date => params[:date]).empty?
+
+      redirect params[:referrer]
+    end
+
+    get "/my_attendance" do
+      halt(403, "You must be logged in.") if @user.nil?
+      @student = Student[@user.bcp_id]
+      halt(400, "Student record not found. Please contact an administrator.") if @student.nil?
+      
+      today = Date.today
+      requested_semester = params[:semester].to_s.downcase
+      @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
+                                                                                            when 1..5 then "spring"
+                                                                                            when 6..7 then "summer"
+                                                                                            else "fall"
+                                                                                            end
+      requested_year = params[:year].to_i
+      @semester_year = requested_year > 0 ? requested_year : today.year
+
+      case @semester
+      when "fall"
+        @semester_start = Date.new(@semester_year, 8, 1)
+        @semester_end = Date.new(@semester_year, 12, 31)
+      when "spring"
+        @semester_start = Date.new(@semester_year, 1, 1)
+        @semester_end = Date.new(@semester_year, 5, 31)
+      else
+        @semester_start = Date.new(@semester_year, 6, 1)
+        @semester_end = Date.new(@semester_year, 7, 31)
+      end
+      
+      erb :my_attendance
+    end
+
     get "/students/:id" do
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
@@ -158,6 +268,7 @@ module CheesyHours
     end
 
     post "/students/:id/mark_excused" do
+      date  Date.strptime(params[:date], "%Y-%m-%d") rescue nil
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       halt(400, "Missing date.") if params[:date].nil? || params[:date] == ""
       ExcusedSession.create(:date => params[:date], :student_id => params[:id])
@@ -166,7 +277,7 @@ module CheesyHours
 
     get "/students/:id/excusals/:date/delete" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      @excusal = ExcusedSession.where(:date => params[:date], :student_id => :id)
+      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id])
       halt(400, "Invalid excusal.") if @excusal.nil?
       @referrer = request.referrer
       erb :delete_excusal

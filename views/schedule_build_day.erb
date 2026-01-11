@@ -1,0 +1,28 @@
+<%= erb :header %>
+
+<div class="container">
+  <h2>Schedule Build Day</h2>
+  <form action="" method="POST">
+    <input type="hidden" name="referrer" value="<%= @referrer %>" />
+    <label for="date">Build Date</label>
+    <input type="date" name="date" value="<%= @date rescue "" %>">
+    <p>
+      <label>
+        <input type="radio" name="optional" value="0" checked>
+        Required Build Day
+      </label>
+      <br>
+      <label>
+        <input type="radio" name="optional" value="1">
+        Optional Build Day
+      </label>
+    </p>
+    <p>
+      Required build days: Students will be penalized if absent (unless excused).<br>
+      Optional build days: Students will receive credit for attending but will not be penalized if absent.
+    </p>
+    <label><input type="submit" class="btn btn-success btn-medium" value="Save"></label>
+  </form>
+</div>
+
+<%= erb :footer %>
