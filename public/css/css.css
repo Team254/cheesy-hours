@@ -250,20 +250,6 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
     background-color: #fff;
 }
 
-#calendar-header-scroll {
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-}
-
-#calendar-header-scroll::-webkit-scrollbar {
-    height: 0;
-}
-
-#calendar-grid-scroll {
-    overflow-x: auto;
-}
-
 /* Clearfix (clear floats) */
 .row::after {
     content: "";
