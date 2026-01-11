@@ -41,25 +41,27 @@
         <div class="column2">
          <div id="calendar-header-sticky">
             <div id="calendar-header-scroll">
-               <table style="table-layout: fixed; margin-bottom: 0px" class="table table-striped table-bordered table-condensed" id="calendar-date-header">
-                  <tr>
-                     <% DB.fetch BUILD_DAYS_RANGE_QUERY, range_start, range_end, hide_optional do |build_date| %>
-                           <th style="width:60px; height:45px; padding-left: 0; padding-right: 0; text-align: center" title="<%= build_date[:build_date].strftime("%A, %B %-d, %Y") %>">
-                              <%= build_date[:build_date].strftime("%m/%d") %>
-                              <% if build_date[:optional] == 1 %>
-                                 <br/>
-                                 <a href="/delete_optional/<%=build_date[:build_date]%>"><small style="font-size: 0.65em">(Optional)</small></a>
-                              <% else %>
-                                 <br/>
-                                 <a href="/schedule_optional?date=<%=build_date[:build_date]%>" class="visible-if-parent-hover"><small style="font-size: 0.65em; padding: 0px 8px;">+optional</small></a>
-                              <% end %>
-                              <% if @user.has_permission?("DATABASE_ADMIN") %>
-                                 <br/>
-                                 <a href="/build_days/<%=build_date[:build_date]%>/delete" class="visible-if-parent-hover"><small style="font-size: 0.65em; padding: 0px 8px;">delete day</small></a>
-                              <% end %>
-                           </th>
-                     <% end %>
-                  </tr>
+               <table style="table-layout: fixed; margin-bottom: 0px" class="table table-striped table-bordered table-condensed calendar-date-table" id="calendar-date-header">
+                  <thead>
+                     <tr>
+                        <% DB.fetch BUILD_DAYS_RANGE_QUERY, range_start, range_end, hide_optional do |build_date| %>
+                              <th style="width:60px; height:45px; padding-left: 0; padding-right: 0; text-align: center" title="<%= build_date[:build_date].strftime("%A, %B %-d, %Y") %>">
+                                 <%= build_date[:build_date].strftime("%m/%d") %>
+                                 <% if build_date[:optional] == 1 %>
+                                    <br/>
+                                    <a href="/delete_optional/<%=build_date[:build_date]%>"><small style="font-size: 0.65em">(Optional)</small></a>
+                                 <% else %>
+                                    <br/>
+                                    <a href="/schedule_optional?date=<%=build_date[:build_date]%>" class="visible-if-parent-hover"><small style="font-size: 0.65em; padding: 0px 8px;">+optional</small></a>
+                                 <% end %>
+                                 <% if @user.has_permission?("DATABASE_ADMIN") %>
+                                    <br/>
+                                    <a href="/build_days/<%=build_date[:build_date]%>/delete" class="visible-if-parent-hover"><small style="font-size: 0.65em; padding: 0px 8px;">delete day</small></a>
+                                 <% end %>
+                              </th>
+                        <% end %>
+                     </tr>
+                  </thead>
                </table>
             </div>
          </div>
@@ -133,14 +135,17 @@
          </div>
       </div>
       <div class="column1">
-            <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed">
-              <tr>
-                <th style="width:65px; height:45px; text-align: center">Builds Attended</th>
-                <th style="width:80px; height:45px; text-align: center">Attendance Rate</th>
-                <th style="width:65px; height:45px; text-align: center">Student ID</th>
-                <th style="width:200px; height:45px; text-align: center">Name (Unexcused)</th>
-               </tr>
-               <% DB.fetch CALENDAR_STUDENT_INFO_RANGE_QUERY, range_start, range_end, hide_optional do |row|
+            <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed student-table">
+              <thead>
+                <tr>
+                  <th style="width:65px; height:45px; text-align: center">Builds Attended</th>
+                  <th style="width:80px; height:45px; text-align: center">Attendance Rate</th>
+                  <th style="width:65px; height:45px; text-align: center">Student ID</th>
+                  <th style="width:200px; height:45px; text-align: center">Name (Unexcused)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% DB.fetch CALENDAR_STUDENT_INFO_RANGE_QUERY, range_start, range_end, hide_optional do |row|
                   student = Student[row[:student_id]]
                   %>
                   <tr style="width: 410px">
@@ -153,7 +158,8 @@
                      ><a href="/students/<%= student.id %>"><%= student.first_name %> <%= student.last_name %></a>
                         <span title="Unexcused absences in range">(<%= row[:unexcused_count].to_i %>)</span></td>
                   </tr>
-              <% end %>
+                <% end %>
+              </tbody>
             </table>
             <div style="display: flex; gap: 1.5em">
                <% if @user.has_permission?("HOURS_VIEW_REPORT") %>
