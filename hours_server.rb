@@ -19,15 +19,24 @@ module CheesyHours
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
     # Enforce authentication for all non-public routes.
     before do
-      @user = CheesyCommon::Auth.get_user(request)
-      if @user.nil?
-        session[:user] = nil
-        # Note: signin_internal blocks all outside sources (localhost only)
-        unless ["/", "/sms", "/signin_internal", "/signout_automatic"].include?(request.path)
-          redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
-        end
+      if ENV["HOURS_BYPASS_AUTH"] == "1"
+        # Local dev bypass for Team 254 SSO.
+        @user = CheesyCommon::User.new(
+          "name_display" => "Dev User",
+          "permissions" => ["HOURS_SIGN_IN", "HOURS_EDIT", "HOURS_DELETE", "HOURS_VIEW_REPORT", "DATABASE_ADMIN"]
+        )
+        session[:user] = @user
       else
-          session[:user] = @user
+        @user = CheesyCommon::Auth.get_user(request)
+        if @user.nil?
+          session[:user] = nil
+          # Note: signin_internal blocks all outside sources (localhost only)
+          unless ["/", "/sms", "/signin_internal", "/signout_automatic"].include?(request.path)
+            redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
+          end
+        else
+            session[:user] = @user
+        end
       end
     end
 
@@ -89,6 +98,27 @@ module CheesyHours
 
     get "/calendar" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      today = Date.today
+      requested_semester = params[:semester].to_s.downcase
+      @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
+                                                                                            when 1..5 then "spring"
+                                                                                            when 6..7 then "summer"
+                                                                                            else "fall"
+                                                                                            end
+      requested_year = params[:year].to_i
+      @semester_year = requested_year > 0 ? requested_year : today.year
+
+      case @semester
+      when "fall"
+        @semester_start = Date.new(@semester_year, 8, 1)
+        @semester_end = Date.new(@semester_year, 12, 31)
+      when "spring"
+        @semester_start = Date.new(@semester_year, 1, 1)
+        @semester_end = Date.new(@semester_year, 5, 31)
+      else
+        @semester_start = Date.new(@semester_year, 6, 1)
+        @semester_end = Date.new(@semester_year, 7, 31)
+      end
       erb :calendar
     end
 
