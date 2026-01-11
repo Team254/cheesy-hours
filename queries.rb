@@ -288,3 +288,50 @@ WITH build_info AS (
 SELECT * FROM student_build_info
 ORDER BY total_attended_count DESC, student_id DESC;
 """
+
+STUDENT_ATTENDANCE_RANGE_QUERY = """
+WITH build_info AS (
+    WITH
+        lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
+        optional_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.optional_builds),
+        scheduled_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.scheduled_build_days),
+        build_days AS (
+            SELECT build_date FROM lab_build_days
+            UNION
+            SELECT build_date FROM optional_build_days
+            UNION
+            SELECT build_date FROM scheduled_build_days
+        ),
+        filtered_build_days AS (
+            SELECT build_date FROM build_days WHERE build_date BETWEEN ? AND ?
+        )
+    SELECT DISTINCT
+        filtered_build_days.build_date,
+        NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
+        CASE
+            WHEN NOT ISNULL(cheesy_frc_hours.optional_builds.date) THEN 0
+            WHEN NOT ISNULL(cheesy_frc_hours.scheduled_build_days.date) AND cheesy_frc_hours.scheduled_build_days.optional = 1 THEN 0
+            ELSE 1
+        END AS required,
+        NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused
+    FROM
+        filtered_build_days
+        LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=filtered_build_days.build_date
+        LEFT JOIN cheesy_frc_hours.scheduled_build_days ON cheesy_frc_hours.scheduled_build_days.date=filtered_build_days.build_date
+        LEFT JOIN cheesy_frc_hours.lab_sessions ON DATE(cheesy_frc_hours.lab_sessions.time_in) = filtered_build_days.build_date
+            AND cheesy_frc_hours.lab_sessions.student_id = ?
+            AND NOT cheesy_frc_hours.lab_sessions.excluded_from_total
+        LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id = ?
+            AND cheesy_frc_hours.excused_sessions.date=filtered_build_days.build_date
+    ORDER BY build_date ASC
+), attendance_summary AS (
+    SELECT
+        COUNT(IF(required AND (NOT excused OR (excused AND attended)), 1, NULL)) AS required_count,
+        COUNT(IF(attended AND required, 1, NULL)) AS required_attended_count,
+        COUNT(IF(attended, 1, NULL)) AS total_attended_count,
+        COUNT(IF(required AND NOT attended AND NOT excused, 1, NULL)) AS unexcused_count
+    FROM build_info
+)
+
+SELECT * FROM attendance_summary;
+"""

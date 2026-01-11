@@ -1,0 +1,89 @@
+<%= erb :header %>
+<% range_start = @semester_start.strftime("%Y-%m-%d") %>
+<% range_end = @semester_end.strftime("%Y-%m-%d") %>
+<% semester_name = @semester.capitalize %>
+<% DB.fetch "SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));" do end %>
+
+<div class="container">
+  <h2>My Attendance</h2>
+  <p><strong><%= @student.first_name %> <%= @student.last_name %></strong> (Student ID: <%= @student.id %>)</p>
+  
+  <form action="/my_attendance" method="get" style="display: inline-flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; margin-bottom: 1.5rem;">
+    <label for="semester-select" style="margin: 0;">Semester</label>
+    <select id="semester-select" name="semester" style="margin: 0;">
+      <option value="fall" <%= "selected" if @semester == "fall" %>>Fall (Aug-Dec)</option>
+      <option value="spring" <%= "selected" if @semester == "spring" %>>Spring (Jan-May)</option>
+      <option value="summer" <%= "selected" if @semester == "summer" %>>Summer (Jun-Jul)</option>
+    </select>
+    <label for="semester-year" style="margin: 0;">Year</label>
+    <input id="semester-year" name="year" type="number" value="<%= @semester_year %>" min="2000" max="2100" style="width: 6rem; margin: 0;" />
+    <button type="submit" class="btn btn-small">Apply</button>
+    <small>Range: <%= semester_name %> <%= @semester_year %> (<%= @semester_start.strftime("%b %-d") %> - <%= @semester_end.strftime("%b %-d") %>)</small>
+  </form>
+
+  <% summary_row = DB.fetch(STUDENT_ATTENDANCE_RANGE_QUERY, range_start, range_end, @student.id, @student.id).first %>
+  <% if summary_row %>
+    <div style="margin-bottom: 1.5rem;">
+      <h3>Summary for <%= semester_name %> <%= @semester_year %></h3>
+      <table class="table table-striped table-bordered table-condensed" style="width: auto;">
+        <tr>
+          <th>Total Builds Attended</th>
+          <td><%= summary_row[:total_attended_count] %></td>
+        </tr>
+        <tr>
+          <th>Required Builds</th>
+          <td><%= summary_row[:required_count] %></td>
+        </tr>
+        <tr>
+          <th>Required Builds Attended</th>
+          <td><%= summary_row[:required_attended_count] %></td>
+        </tr>
+        <tr>
+          <th>Attendance Rate</th>
+          <td><%= (100 * summary_row[:required_attended_count].to_f / summary_row[:required_count]).to_i rescue "0" %>%</td>
+        </tr>
+        <tr>
+          <th><strong>Unexcused Absences</strong></th>
+          <td><strong><%= summary_row[:unexcused_count] %></strong></td>
+        </tr>
+      </table>
+    </div>
+  <% end %>
+
+  <h3>Attendance by Date</h3>
+  <table class="table table-striped table-bordered table-condensed">
+    <tr>
+      <th>Date</th>
+      <th>Day</th>
+      <th>Status</th>
+      <th>Type</th>
+    </tr>
+    <% DB.fetch BUILD_DAYS_RANGE_QUERY, range_start, range_end do |build_date| %>
+      <% date_str = build_date[:build_date].strftime("%Y-%m-%d") %>
+      <% session = @student.lab_sessions.select { |s| s.time_out && !s.excluded_from_total && s.time_in.strftime("%Y-%m-%d") == date_str }.first %>
+      <% excused = @student.excused_sessions.select { |e| e.date.strftime("%Y-%m-%d") == date_str }.first %>
+      <% optional = build_date[:optional] == 1 %>
+      <% required = !optional %>
+      <% attended = !session.nil? %>
+      
+      <tr>
+        <td><%= build_date[:build_date].strftime("%m/%d/%Y") %></td>
+        <td><%= build_date[:build_date].strftime("%A") %></td>
+        <td>
+          <% if attended %>
+            <span style="color: var(--present-color); font-weight: bold;">Present</span>
+          <% elsif excused && required %>
+            <span style="color: var(--partial-color); font-weight: bold;">Excused</span>
+          <% elsif !required %>
+            <span style="color: #888;">Optional</span>
+          <% else %>
+            <span style="color: var(--missing-color); font-weight: bold;">Absent</span>
+          <% end %>
+        </td>
+        <td><%= optional ? "Optional" : "Required" %></td>
+      </tr>
+    <% end %>
+  </table>
+</div>
+
+<%= erb :footer %>

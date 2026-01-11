@@ -218,6 +218,36 @@ module CheesyHours
       redirect params[:referrer]
     end
 
+    get "/my_attendance" do
+      halt(403, "You must be logged in.") if @user.nil?
+      @student = Student[@user.bcp_id]
+      halt(400, "Student record not found. Please contact an administrator.") if @student.nil?
+      
+      today = Date.today
+      requested_semester = params[:semester].to_s.downcase
+      @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
+                                                                                            when 1..5 then "spring"
+                                                                                            when 6..7 then "summer"
+                                                                                            else "fall"
+                                                                                            end
+      requested_year = params[:year].to_i
+      @semester_year = requested_year > 0 ? requested_year : today.year
+
+      case @semester
+      when "fall"
+        @semester_start = Date.new(@semester_year, 8, 1)
+        @semester_end = Date.new(@semester_year, 12, 31)
+      when "spring"
+        @semester_start = Date.new(@semester_year, 1, 1)
+        @semester_end = Date.new(@semester_year, 5, 31)
+      else
+        @semester_start = Date.new(@semester_year, 6, 1)
+        @semester_end = Date.new(@semester_year, 7, 31)
+      end
+      
+      erb :my_attendance
+    end
+
     get "/students/:id" do
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
