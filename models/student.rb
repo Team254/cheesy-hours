@@ -6,6 +6,7 @@
 class Student < Sequel::Model
   unrestrict_primary_key
   one_to_many :lab_sessions
+  one_to_many :excused_sessions
 
   def self.get_by_id(id)
     # Try first by assuming id is the full 6-digit ID.
@@ -18,7 +19,7 @@ class Student < Sequel::Model
   end
 
   def project_hours
-    lab_sessions.reject { |session| session.time_out.nil? }.inject(0) do |sum, session|
+    lab_sessions.reject { |session| session.time_out.nil? || session.excluded_from_total }.inject(0) do |sum, session|
       sum + session.duration_hours
     end
   end
@@ -32,7 +33,7 @@ class Student < Sequel::Model
   end
 
   def total_sessions_attended
-    lab_sessions.reject { |session| session.time_out.nil? }.inject(0) do |sum, session|
+    lab_sessions.reject { |session| session.time_out.nil? || session.excluded_from_total }.inject(0) do |sum, session|
       sum + 1
     end
   end

@@ -18,7 +18,7 @@
       <% else %>
         <td><%= session.student_id %></td>
       <% end %>
-      <td><%= session.time_in.in_time_zone("America/Los_Angeles").strftime("%D %l:%M %p") %></td>
+      <td><%= session.time_in.in_time_zone(USER_TIME_ZONE).strftime("%D %l:%M %p") %></td>
       <% if @user && (@user.has_permission?("VEXHOURS_EDIT") || @user.has_permission?("HOURS_DELETE")) %>
         <td>
           <% if @user.has_permission?("VEXHOURS_EDIT") %>

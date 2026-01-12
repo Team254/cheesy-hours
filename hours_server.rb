@@ -11,22 +11,43 @@ require "sinatra/base"
 require "json"
 
 require "models"
+require "constants"
+require "queries"
 
 module CheesyHours
   class Server < Sinatra::Base
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
 
+    configure do
+      if ENV["HOURS_AUTO_SEED_TEST_STUDENTS"] == "1"
+        require_relative "script/seed_test_students"
+        count = (ENV["COUNT"] || "30").to_i
+        start_id = (ENV["START_ID"] || "900000").to_i
+        SeedTestStudents.run(count: count, start_id: start_id)
+      end
+    end
     # Enforce authentication for all non-public routes.
     before do
-      @user = CheesyCommon::Auth.get_user(request)
-      if @user.nil?
-        session[:user] = nil
-        # Note: signin_internal blocks all outside sources (localhost only)
-        unless ["/", "/sms", "/signin_internal", "/signout_automatic"].include?(request.path)
-          redirect "#{CheesyCommon::Config.members_url}?site=ftchours&path=#{request.path}"
-        end
+      if ENV["HOURS_BYPASS_AUTH"] == "1"
+        # Local dev bypass for Team 254 SSO.
+        dev_bcp_id = (ENV["HOURS_BYPASS_BCP_ID"] || "900001").to_i
+        @user = CheesyCommon::User.new(
+          "name_display" => "Dev User",
+          "bcp_id" => dev_bcp_id,
+          "permissions" => ["HOURS_SIGN_IN", "HOURS_EDIT", "VEXHOURS_EDIT", "HOURS_DELETE", "HOURS_VIEW_REPORT", "DATABASE_ADMIN"]
+        )
+        session[:user] = @user
       else
+        @user = CheesyCommon::Auth.get_user(request)
+        if @user.nil?
+          session[:user] = nil
+          # Note: signin_internal blocks all outside sources (localhost only)
+          unless ["/", "/sms", "/signin_internal", "/signout_automatic"].include?(request.path)
+            redirect "#{CheesyCommon::Config.members_url}?site=ftchours&path=#{request.path}"
+          end
+        else
           session[:user] = @user
+        end
       end
     end
 
@@ -58,6 +79,14 @@ module CheesyHours
       end
       @student.add_lab_session(:time_in => Time.now)
 
+      # Add an optional build to the database if necessary.
+      # (If today is not mandatory and the optional build is not in the database)
+      currentUserTime = DateTime.now.in_time_zone(USER_TIME_ZONE)
+      if REQUIRED_BUILD_DAYS.include?(currentUserTime.strftime("%A")) &&
+          OptionalBuild.where(:date => currentUserTime.strftime("%Y-%m-%d")).empty?
+        OptionalBuild.create(:date => currentUserTime.strftime("%Y-%m-%d"))
+      end
+
       redirect "/"
     end
 
@@ -78,16 +107,199 @@ module CheesyHours
       erb :leader_board
     end
 
+    get "/calendar" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      today = Date.today
+      requested_semester = params[:semester].to_s.downcase
+      @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
+                                                                                            when 1..5 then "spring"
+                                                                                            when 6..7 then "summer"
+                                                                                            else "fall"
+                                                                                            end
+      requested_year = params[:year].to_i
+      @semester_year = requested_year > 0 ? requested_year : today.year
+      @hide_optional = ["1", "true", "on"].include?(params[:hide_optional].to_s)
+
+      case @semester
+      when "fall"
+        @semester_start = Date.new(@semester_year, 8, 1)
+        @semester_end = Date.new(@semester_year, 12, 31)
+      when "spring"
+        @semester_start = Date.new(@semester_year, 1, 1)
+        @semester_end = Date.new(@semester_year, 5, 31)
+      else
+        @semester_start = Date.new(@semester_year, 6, 1)
+        @semester_end = Date.new(@semester_year, 7, 31)
+      end
+      erb :calendar
+    end
+
+    get "/optionalize_past_offdays" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      @referrer = request.referrer
+      erb :optionalize_past_offdays
+    end
+
+    post "/optionalize_past_offdays" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+
+      DB.fetch BUILD_DAYS_QUERY do |row|
+        if !REQUIRED_BUILD_DAYS.include?(row[:build_date].strftime("%A"))
+          OptionalBuild.create(:date => row[:build_date]) rescue nil
+        end
+      end
+
+      redirect params[:referrer]
+    end
+
+    get "/schedule_optional" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      @referrer = request.referrer
+      @date = params[:date]
+      erb :optional_build_scheduler
+    end
+
+    post "/schedule_optional" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      halt(400, "Invalid date.") if params[:date].nil?|| params[:date] == ""
+
+      OptionalBuild.create(:date => params[:date]) if OptionalBuild.where(:date => params[:date]).empty?
+
+      redirect params[:referrer]
+    end
+
+    get "/delete_optional/:date" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      @referrer = request.referrer
+
+      erb :delete_optional_build
+    end
+
+    post "/delete_optional/:date" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      OptionalBuild.where(:date => params[:date]).delete
+
+      redirect params[:referrer]
+    end
+
+    get "/build_days/:date/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+      @referrer = request.referrer
+      @date = params[:date]
+      erb :delete_build_day
+    end
+
+    post "/build_days/:date/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+      date = params[:date]
+      halt(400, "Invalid date.") if date.nil? || date == ""
+
+      OptionalBuild.where(:date => date).delete
+      ScheduledBuildDay.where(:date => date).delete
+      ExcusedSession.where(:date => date).delete
+      LabSession.where(Sequel.lit("DATE(time_in) = ?", date)).update(:excluded_from_total => true)
+
+      redirect params[:referrer]
+    end
+
+    get "/schedule_build_day" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      @referrer = request.referrer
+      @date = params[:date]
+      erb :schedule_build_day
+    end
+
+    post "/schedule_build_day" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      halt(400, "Invalid date.") if params[:date].nil? || params[:date] == ""
+      halt(400, "Invalid optional value.") if params[:optional].nil?
+
+      optional = params[:optional] == "1" || params[:optional] == "true"
+      ScheduledBuildDay.create(:date => params[:date], :optional => optional) if ScheduledBuildDay.where(:date => params[:date]).empty?
+
+      redirect params[:referrer]
+    end
+
+    get "/my_attendance" do
+      halt(403, "You must be logged in.") if @user.nil?
+      @student = Student[@user.bcp_id]
+      halt(400, "Student record not found. Please contact an administrator.") if @student.nil?
+      
+      today = Date.today
+      requested_semester = params[:semester].to_s.downcase
+      @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
+                                                                                            when 1..5 then "spring"
+                                                                                            when 6..7 then "summer"
+                                                                                            else "fall"
+                                                                                            end
+      requested_year = params[:year].to_i
+      @semester_year = requested_year > 0 ? requested_year : today.year
+
+      case @semester
+      when "fall"
+        @semester_start = Date.new(@semester_year, 8, 1)
+        @semester_end = Date.new(@semester_year, 12, 31)
+      when "spring"
+        @semester_start = Date.new(@semester_year, 1, 1)
+        @semester_end = Date.new(@semester_year, 5, 31)
+      else
+        @semester_start = Date.new(@semester_year, 6, 1)
+        @semester_end = Date.new(@semester_year, 7, 31)
+      end
+      
+      erb :my_attendance
+    end
+
     get "/students/:id" do
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
       erb :student
     end
 
+    get "/students/:id/mark_excused" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      @student = Student[params[:id]]
+      halt(400, "Invalid student.") if @student.nil?
+      @referrer = request.referrer
+      if !params[:date].nil?
+        @date = params[:date]
+      end
+      erb :mark_excused
+    end
+
+    post "/students/:id/mark_excused" do
+      date  Date.strptime(params[:date], "%Y-%m-%d") rescue nil
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      halt(400, "Missing date.") if params[:date].nil? || params[:date] == ""
+      ExcusedSession.create(:date => params[:date], :student_id => params[:id])
+      redirect params[:referrer]
+    end
+
+    get "/students/:id/excusals/:date/delete" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id])
+      halt(400, "Invalid excusal.") if @excusal.nil?
+      @referrer = request.referrer
+      erb :delete_excusal
+    end
+
+    post "/students/:id/excusals/:date/delete" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id])
+      halt(400, "Invalid excusal.") if @excusal.nil?
+      @excusal.delete
+      redirect params[:referrer]
+    end
+
     get "/students/:id/new_lab_session" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("VEXHOURS_EDIT")
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
+      @referrer = request.referrer
+      if !params[:date].nil?
+        # allow prefilling the date based on a url parameter
+        @lab_session = OpenStruct.new(:time_in => params[:date], :time_out => params[:date])
+      end
       erb :edit_lab_session
     end
 
@@ -95,7 +307,8 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("VEXHOURS_EDIT")
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
-      student.add_lab_session(:time_in => params[:time_in], :time_out => params[:time_out],
+      student.add_lab_session(:time_in => DateTime.parse(params[:time_in]).utc,
+                              :time_out => DateTime.parse(params[:time_out]).utc,
                               :notes => params[:notes],
                               :mentor_name => params[:time_out].empty? ? nil : @user.name_display)
       redirect params[:referrer] || "/leader_board"
@@ -120,8 +333,13 @@ module CheesyHours
       else
         mentor_name = @lab_session.mentor_name
       end
-      @lab_session.update(:time_in => params[:time_in], :time_out => params[:time_out],
-                          :notes => params[:notes], :mentor_name => mentor_name)
+      @lab_session.update(
+        :time_in => DateTime.parse(params[:time_in]).utc,
+        :time_out => DateTime.parse(params[:time_out]).utc,
+        :notes => params[:notes],
+        :mentor_name => mentor_name,
+        :excluded_from_total => params[:excluded_from_total] == "on"
+      )
       redirect params[:referrer] || "/leader_board"
     end
 
@@ -190,13 +408,13 @@ module CheesyHours
     end
 
     get "/mentor_checkins" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
       @mentor_checkins = MentorCheckin.order_by(:id).reverse
       erb :mentor_checkins
     end
 
     get "/mentor_checkins/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
       @mentor_checkin = MentorCheckin[params[:id]]
       halt(400, "Invalid mentor_checkin.") if @mentor_checkin.nil?
       @referrer = request.referrer
@@ -204,24 +422,29 @@ module CheesyHours
     end
 
     post "/mentor_checkins/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
       mentor_checkin = MentorCheckin[params[:id]]
       halt(400, "Invalid mentor_checkin.") if mentor_checkin.nil?
       mentor_checkin.delete
       redirect params[:referrer] || "/mentor_checkins"
     end
 
+    get "/suspect_lab_sessions" do
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
+      erb :suspect_lab_sessions
+    end
+
     get "/search" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
       erb :search
     end
 
     post "/search" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
       @start = params[:start_date]
       @end = params[:end_date]
       begin
-        offset = Time.now.in_time_zone('America/Los_Angeles').formatted_offset
+        offset = Time.now.in_time_zone(USER_TIME_ZONE).formatted_offset
         start_date = DateTime.parse(@start).change(offset: offset)
         end_date = DateTime.parse(@end == "" ? @start : @end).change(offset: offset) + 1
       rescue
@@ -316,6 +539,20 @@ module CheesyHours
       END
     end
 
+    get "/csv_attendance_report" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW_REPORT")
+      content_type "text/csv"
+
+      rows = []
+      rows << ["Last Name", "First Name", "Student ID", "Attendance Percentage", "Project Hours", "Total # of Sign Outs"].join(",")
+      DB.fetch CALENDAR_STUDENT_INFO_QUERY do |row|
+        student = Student[row[:student_id]]
+        build_percentage = ((100 * row[:required_attended_count].to_f/row[:required_count]).to_i rescue "0").to_s + "%"
+        rows << [student.last_name, student.first_name, student.id, build_percentage, student.project_hours, student.total_sessions_attended].join(",")
+      end
+      rows.join("\n")
+    end
+
     get "/reset_hours" do
       unless @user.has_permission?("DATABASE_ADMIN")
         halt(400, "Need to be an administrator.")
@@ -332,7 +569,7 @@ module CheesyHours
 
       LabSession.where(:time_out => nil).each do |lab_session|
         offset_hours = CheesyCommon::Config.automatic_signout_offset_hours
-        offset_hours -= 1 if Time.now.in_time_zone("America/Los_Angeles").dst?
+        offset_hours -= 1 if Time.now.in_time_zone(USER_TIME_ZONE).dst?
         signout_time = Time.now + offset_hours * 3600
 
         lab_session.update(:time_out => signout_time, :mentor_name => "Automatic - Didn't Sign Out")

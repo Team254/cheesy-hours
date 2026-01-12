@@ -1,7 +1,8 @@
 <%= erb :header %>
 
 <script>
-  var timeOffset = " -0" + -(new Date()).getTimezoneOffset() / 60 + "00";
+  var timeOffset = " -0" + (new Date()).getTimezoneOffset() / 60 + "00";
+  const hasOffsetRe = /.*[\-\+]\d{4}$/
 </script>
 
 <div class="container">
@@ -10,14 +11,19 @@
     <input type="hidden" name="referrer" value="<%= @referrer %>" />
     <label>Time in (e.g. 2014-01-04 13:00:00)</label>
     <input type="text" name="time_in"
-        value="<%= @lab_session.time_in.in_time_zone("America/Los_Angeles") rescue "" %>"
-        oninput="if (!this.value.endsWith(timeOffset)) { this.value.concat(timeOffset); }" />
+        value="<%= @lab_session.time_in.in_time_zone(USER_TIME_ZONE) rescue "" %>"
+        onchange="if (!hasOffsetRe.test(this.value)) { this.value = this.value.concat(timeOffset); }"
+        />
     <label>Time out (e.g. 2014-01-04 20:00:00)</label>
     <input type="text" name="time_out"
-        value="<%= @lab_session.time_out.in_time_zone("America/Los_Angeles") rescue "" %>"
-        oninput="if (!this.value.endsWith(timeOffset)) { this.value.concat(timeOffset); }" />
+        value="<%= @lab_session.time_out.in_time_zone(USER_TIME_ZONE) rescue "" %>"
+        onchange="if (!hasOffsetRe.test(this.value)) { this.value = this.value.concat(timeOffset); }"
+        />
     <label>Notes (e.g. description of non-lab work)</label>
     <textarea name="notes"><%= @lab_session.notes rescue "" %></textarea>
+    <label>Excluded from total?</label>
+    <input type="checkbox" name="excluded_from_total"<%= " checked" if @lab_session.excluded_from_total %> />
+    <br /><br />
     <label><input type="submit" class="btn btn-success btn-medium" value="Save"></label>
   </form>
 </div>
