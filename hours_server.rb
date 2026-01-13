@@ -268,7 +268,6 @@ module CheesyHours
     end
 
     post "/students/:id/mark_excused" do
-      date  Date.strptime(params[:date], "%Y-%m-%d") rescue nil
       halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
       halt(400, "Missing date.") if params[:date].nil? || params[:date] == ""
       ExcusedSession.create(:date => params[:date], :student_id => params[:id])
@@ -277,7 +276,7 @@ module CheesyHours
 
     get "/students/:id/excusals/:date/delete" do
       halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
-      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id])
+      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id]).first
       halt(400, "Invalid excusal.") if @excusal.nil?
       @referrer = request.referrer
       erb :delete_excusal
@@ -285,7 +284,7 @@ module CheesyHours
 
     post "/students/:id/excusals/:date/delete" do
       halt(403, "Insufficient permissions.") unless (@user.has_permission?("HOURS_EDIT") || @user.has_permission?("VEXHOURS_EDIT"))
-      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id])
+      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id]).first
       halt(400, "Invalid excusal.") if @excusal.nil?
       @excusal.delete
       redirect params[:referrer]
