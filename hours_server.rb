@@ -18,15 +18,6 @@ module CheesyHours
   class Server < Sinatra::Base
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
 
-    configure do
-      if ENV["HOURS_AUTO_SEED_TEST_STUDENTS"] == "1"
-        require_relative "script/seed_test_students"
-        count = (ENV["COUNT"] || "30").to_i
-        start_id = (ENV["START_ID"] || "900000").to_i
-        SeedTestStudents.run(count: count, start_id: start_id)
-      end
-    end
-
     helpers do
       def user_time_zone
         @user_time_zone ||= ActiveSupport::TimeZone[USER_TIME_ZONE]
