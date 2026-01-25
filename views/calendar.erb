@@ -49,10 +49,10 @@
                                  <%= build_date[:build_date].strftime("%m/%d") %>
                                  <% if build_date[:optional] == 1 %>
                                     <br/>
-                                    <a href="/delete_optional/<%=build_date[:build_date]%>"><small style="font-size: 0.65em">(Optional)</small></a>
+                                    <a href="/delete_optional/<%=build_date[:build_date]%>"><small style="font-size: 0.65em; padding: 0px 8px;">mark required</small></a>
                                  <% else %>
                                     <br/>
-                                    <a href="/schedule_optional?date=<%=build_date[:build_date]%>" class="visible-if-parent-hover"><small style="font-size: 0.65em; padding: 0px 8px;">+optional</small></a>
+                                    <a href="/schedule_optional?date=<%=build_date[:build_date]%>" class="visible-if-parent-hover"><small style="font-size: 0.65em; padding: 0px 8px;">mark optional</small></a>
                                  <% end %>
                                  <% if @user.has_permission?("DATABASE_ADMIN") %>
                                     <br/>

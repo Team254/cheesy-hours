@@ -91,8 +91,9 @@ module CheesyHours
       # Add an optional build to the database if necessary.
       # (If today is not mandatory and the optional build is not in the database)
       currentUserTime = DateTime.now.in_time_zone(USER_TIME_ZONE)
-      if REQUIRED_BUILD_DAYS.include?(currentUserTime.strftime("%A")) &&
-          OptionalBuild.where(:date => currentUserTime.strftime("%Y-%m-%d")).empty?
+      if !REQUIRED_BUILD_DAYS.include?(currentUserTime.strftime("%A")) &&
+          OptionalBuild.where(:date => currentUserTime.strftime("%Y-%m-%d")).empty? &&
+          ScheduledBuildDay.where(:date => currentUserTime.strftime("%Y-%m-%d")).empty?
         OptionalBuild.create(:date => currentUserTime.strftime("%Y-%m-%d"))
       end
 
@@ -172,7 +173,14 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       halt(400, "Invalid date.") if params[:date].nil?|| params[:date] == ""
 
-      OptionalBuild.create(:date => params[:date]) if OptionalBuild.where(:date => params[:date]).empty?
+      date = params[:date]
+      scheduled_build_day = ScheduledBuildDay.where(:date => date).first
+      if scheduled_build_day
+        scheduled_build_day.update(:optional => true)
+      else
+        ScheduledBuildDay.create(:date => date, :optional => true)
+      end
+      OptionalBuild.where(:date => date).delete
 
       redirect params[:referrer]
     end
@@ -186,7 +194,14 @@ module CheesyHours
 
     post "/delete_optional/:date" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      OptionalBuild.where(:date => params[:date]).delete
+      date = params[:date]
+      OptionalBuild.where(:date => date).delete
+      scheduled_build_day = ScheduledBuildDay.where(:date => date).first
+      if scheduled_build_day
+        scheduled_build_day.update(:optional => false)
+      else
+        ScheduledBuildDay.create(:date => date, :optional => false)
+      end
 
       redirect params[:referrer]
     end
@@ -223,7 +238,10 @@ module CheesyHours
       halt(400, "Invalid optional value.") if params[:optional].nil?
 
       optional = params[:optional] == "1" || params[:optional] == "true"
-      ScheduledBuildDay.create(:date => params[:date], :optional => optional) if ScheduledBuildDay.where(:date => params[:date]).empty?
+      date = params[:date]
+      updated = ScheduledBuildDay.where(:date => date).update(:optional => optional)
+      ScheduledBuildDay.create(:date => date, :optional => optional) if updated == 0
+      OptionalBuild.where(:date => date).delete
 
       redirect params[:referrer]
     end
@@ -314,8 +332,8 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
-      student.add_lab_session(:time_in => DateTime.parse(params[:time_in]).utc,
-                              :time_out => DateTime.parse(params[:time_out]).utc,
+      student.add_lab_session(:time_in => DateTime.parse(params[:time_in]),
+                              :time_out => DateTime.parse(params[:time_out]),
                               :notes => params[:notes],
                               :mentor_name => params[:time_out].empty? ? nil : @user.name_display)
       redirect params[:referrer] || "/leader_board"
@@ -341,8 +359,8 @@ module CheesyHours
         mentor_name = @lab_session.mentor_name
       end
       @lab_session.update(
-        :time_in => DateTime.parse(params[:time_in]).utc,
-        :time_out => DateTime.parse(params[:time_out]).utc,
+        :time_in => DateTime.parse(params[:time_in]),
+        :time_out => DateTime.parse(params[:time_out]),
         :notes => params[:notes],
         :mentor_name => mentor_name,
         :excluded_from_total => params[:excluded_from_total] == "on"
