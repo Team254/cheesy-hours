@@ -77,10 +77,10 @@
                    <% required = row[:required] %>
                    <% excused = row[:excused] %>
                   <% if (rowNum.modulo(studentsCnt) == 1) %>
-                     <tr style="width: 60px">
+                     <tr style="width: 61px">
                   <% end %>
                   <% if (attended == 1) %>
-                     <td style="background-color: var(--present-color); min-width:60px; height:30px;">
+                     <td style="background-color: var(--present-color); min-width:50px; height:30px;">
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
                               <span class="caret"></span>
@@ -92,7 +92,7 @@
                         </div>
                      </td>
                   <% elsif (excused == 1 && required == 1) %>
-                     <td style="--color-a: var(--excused-color); --color-b: var(--partial-color); min-width:60px; height:30px;" class="stripe-bg">
+                     <td style="--color-a: var(--excused-color); --color-b: var(--partial-color); min-width:50px; height:30px;" class="stripe-bg">
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
                               <span class="caret"></span>
@@ -103,7 +103,7 @@
                         </div>
                      </td>
                   <% elsif (!(required == 1)) %>
-                     <td style="background-color: var(--excused-color); min-width:60px; height:30px;">
+                     <td style="background-color: var(--excused-color); min-width:50px; height:30px;">
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
                               <span class="caret"></span>
@@ -114,7 +114,7 @@
                         </div>
                      </td>
                   <% else %>
-                     <td style = "background-color: var(--missing-color); min-width:60px; height:30px;">
+                     <td style = "background-color: var(--missing-color); min-width:50px; height:30px;">
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
                               <span class="caret"></span>
