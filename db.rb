@@ -5,5 +5,8 @@
 
 require "cheesy-common"
 
+Sequel.application_timezone = :utc
+Sequel.database_timezone = :utc
+
 DB = Sequel.mysql2({ :host => CheesyCommon::Config.db_host, :user => CheesyCommon::Config.db_user,
 	:password => CheesyCommon::Config.db_password, :database => CheesyCommon::Config.db_database })
