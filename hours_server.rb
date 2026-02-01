@@ -28,10 +28,6 @@ module CheesyHours
         @user_time_zone ||= ActiveSupport::TimeZone[USER_TIME_ZONE]
       end
 
-      def user_time_now
-        Time.now.utc
-      end
-
       def parse_user_time(value)
         value = value.to_s
         raise ArgumentError, "Missing time" if value.strip.empty?
@@ -95,7 +91,7 @@ module CheesyHours
       unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
         halt(400, "An open lab session already exists for student #{@student.id}.")
       end
-      @student.add_lab_session(:time_in => user_time_now)
+      @student.add_lab_session(:time_in => Time.now.utc)
 
       # Add an optional build to the database if necessary.
       # (If today is not mandatory and the optional build is not in the database)
@@ -117,7 +113,7 @@ module CheesyHours
       unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
         halt(400, "An open lab session already exists for student #{@student.id}.")
       end
-      @student.add_lab_session(:time_in => user_time_now)
+      @student.add_lab_session(:time_in => Time.now.utc)
 
       "Success"
     end
@@ -341,7 +337,7 @@ module CheesyHours
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
       student.add_lab_session(:time_in => parse_user_time(params[:time_in]),
-                              :time_out => parse_user_time(params[:time_out]),
+                              :time_out => params[:time_out].empty? ? nil : parse_user_time(params[:time_out]),
                               :notes => params[:notes],
                               :mentor_name => params[:time_out].empty? ? nil : @user.name_display)
       redirect params[:referrer] || "/leader_board"
@@ -368,7 +364,7 @@ module CheesyHours
       end
       @lab_session.update(
         :time_in => parse_user_time(params[:time_in]),
-        :time_out => parse_user_time(params[:time_out]),
+        :time_out => params[:time_out].empty? ? nil : parse_user_time(params[:time_out]),
         :notes => params[:notes],
         :mentor_name => mentor_name,
         :excluded_from_total => params[:excluded_from_total] == "on"
@@ -396,7 +392,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if lab_session.nil?
-      lab_session.update(:time_out => user_time_now, :mentor_name => @user.name_display)
+      lab_session.update(:time_out => Time.now.utc, :mentor_name => @user.name_display)
       redirect "/"
     end
 
@@ -513,12 +509,12 @@ module CheesyHours
       if params[:Body].strip.downcase == "gtfo"
         # Sign everyone out all at once.
         LabSession.where(:time_out => nil).each do |lab_session|
-          lab_session.update(:time_out => user_time_now, :mentor => mentor)
+          lab_session.update(:time_out => Time.now.utc, :mentor => mentor)
         end
         halt(200, sms_response(["All students signed out."]))
       elsif params[:Body].strip.downcase == "here"
         # Register a mentor check-in.
-        MentorCheckin.create(mentor: mentor, time_in: user_time_now)
+        MentorCheckin.create(mentor: mentor, time_in: Time.now.utc)
         halt(200, sms_response(["Checked in #{mentor.first_name} #{mentor.last_name}."]))
       end
 
@@ -535,7 +531,7 @@ module CheesyHours
           if lab_session.nil?
             "Error: #{student.first_name} #{student.last_name} is not signed in."
           else
-            lab_session.update(:time_out => user_time_now, :mentor => mentor)
+            lab_session.update(:time_out => Time.now.utc, :mentor => mentor)
             "#{student.first_name} #{student.last_name} signed out after " +
                 "#{lab_session.duration_hours.round(1)} hours."
           end
@@ -607,9 +603,8 @@ module CheesyHours
 
       LabSession.where(:time_out => nil).each do |lab_session|
         offset_hours = CheesyCommon::Config.automatic_signout_offset_hours
-        now = user_time_zone.now
-        offset_hours -= 1 if now.dst?
-        signout_time = (now + offset_hours * 3600).utc
+        offset_hours -= 1 if Time.now.in_time_zone(USER_TIME_ZONE).dst?
+        signout_time = (Time.now + offset_hours * 3600).utc
 
         lab_session.update(:time_out => signout_time, :mentor_name => "Automatic - Didn't Sign Out")
       end
