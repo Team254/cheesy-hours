@@ -29,7 +29,7 @@ module CheesyHours
       end
 
       def user_time_now
-        user_time_zone.now
+        Time.now.utc
       end
 
       def parse_user_time(value)
@@ -37,7 +37,7 @@ module CheesyHours
         raise ArgumentError, "Missing time" if value.strip.empty?
         time = user_time_zone.parse(value)
         raise ArgumentError, "Invalid time" if time.nil?
-        time
+        time.utc
       end
     end
     # Enforce authentication for all non-public routes.
@@ -99,7 +99,7 @@ module CheesyHours
 
       # Add an optional build to the database if necessary.
       # (If today is not mandatory and the optional build is not in the database)
-      currentUserTime = user_time_now
+      currentUserTime = user_time_zone.now
       if !REQUIRED_BUILD_DAYS.include?(currentUserTime.strftime("%A")) &&
           OptionalBuild.where(:date => currentUserTime.strftime("%Y-%m-%d")).empty? &&
           ScheduledBuildDay.where(:date => currentUserTime.strftime("%Y-%m-%d")).empty?
@@ -128,7 +128,7 @@ module CheesyHours
 
     get "/calendar" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      today = user_time_now.to_date
+      today = user_time_zone.now.to_date
       requested_semester = params[:semester].to_s.downcase
       @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
                                                                                             when 1..5 then "spring"
@@ -260,7 +260,7 @@ module CheesyHours
       @student = Student[@user.bcp_id]
       halt(400, "Student record not found. Please contact an administrator.") if @student.nil?
       
-      today = user_time_now.to_date
+      today = user_time_zone.now.to_date
       requested_semester = params[:semester].to_s.downcase
       @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
                                                                                             when 1..5 then "spring"
@@ -477,7 +477,7 @@ module CheesyHours
       @start = params[:start_date]
       @end = params[:end_date]
       begin
-        offset = user_time_now.formatted_offset
+        offset = user_time_zone.now.formatted_offset
         start_date = DateTime.parse(@start).change(offset: offset)
         end_date = DateTime.parse(@end == "" ? @start : @end).change(offset: offset) + 1
       rescue
@@ -602,9 +602,9 @@ module CheesyHours
 
       LabSession.where(:time_out => nil).each do |lab_session|
         offset_hours = CheesyCommon::Config.automatic_signout_offset_hours
-        now = user_time_now
+        now = user_time_zone.now
         offset_hours -= 1 if now.dst?
-        signout_time = now + offset_hours * 3600
+        signout_time = (now + offset_hours * 3600).utc
 
         lab_session.update(:time_out => signout_time, :mentor_name => "Automatic - Didn't Sign Out")
       end
