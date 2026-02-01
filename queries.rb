@@ -1,6 +1,19 @@
+REQUIRED_BUILD_DAYS_SQL = REQUIRED_BUILD_DAYS.map { |day| "'#{day}'" }.join(", ")
+
+def optional_build_case(build_date_ref)
+  <<~SQL
+    CASE
+        WHEN NOT ISNULL(cheesy_frc_hours.scheduled_build_days.date) THEN cheesy_frc_hours.scheduled_build_days.optional
+        WHEN NOT ISNULL(cheesy_frc_hours.optional_builds.date) THEN 1
+        WHEN DAYNAME(#{build_date_ref}) IN (#{REQUIRED_BUILD_DAYS_SQL}) THEN 0
+        ELSE 1
+    END
+  SQL
+end
+
 BUILD_DAYS_QUERY = """
 WITH
-    lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions),
+    lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
     optional_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.optional_builds),
     scheduled_build_days AS (SELECT date AS build_date, optional FROM cheesy_frc_hours.scheduled_build_days),
     all_build_days AS (
@@ -12,11 +25,7 @@ WITH
     )
 SELECT
     all_build_days.build_date,
-    CASE
-        WHEN NOT ISNULL(cheesy_frc_hours.optional_builds.date) THEN 1
-        WHEN NOT ISNULL(cheesy_frc_hours.scheduled_build_days.date) AND cheesy_frc_hours.scheduled_build_days.optional = 1 THEN 1
-        ELSE 0
-    END AS optional
+    #{optional_build_case("all_build_days.build_date")} AS optional
 FROM
     all_build_days 
     LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=all_build_days.build_date
@@ -26,7 +35,7 @@ ORDER BY build_date ASC;
 
 BUILD_DAYS_RANGE_QUERY = """
 WITH
-    lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions),
+    lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
     optional_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.optional_builds),
     scheduled_build_days AS (SELECT date AS build_date, optional FROM cheesy_frc_hours.scheduled_build_days),
     all_build_days AS (
@@ -38,11 +47,7 @@ WITH
     )
 SELECT
     all_build_days.build_date,
-    CASE
-        WHEN NOT ISNULL(cheesy_frc_hours.optional_builds.date) THEN 1
-        WHEN NOT ISNULL(cheesy_frc_hours.scheduled_build_days.date) AND cheesy_frc_hours.scheduled_build_days.optional = 1 THEN 1
-        ELSE 0
-    END AS optional
+    #{optional_build_case("all_build_days.build_date")} AS optional
 FROM
     all_build_days
     LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=all_build_days.build_date
@@ -51,9 +56,7 @@ WHERE
     all_build_days.build_date BETWEEN ? AND ?
     AND (
         ? = 0
-        OR (cheesy_frc_hours.optional_builds.date IS NULL
-            AND (cheesy_frc_hours.scheduled_build_days.optional IS NULL
-                OR cheesy_frc_hours.scheduled_build_days.optional = 0))
+        OR (#{optional_build_case("all_build_days.build_date")}) = 0
     )
 ORDER BY build_date ASC;
 """
@@ -91,8 +94,7 @@ SELECT DISTINCT
     COALESCE(ordered_students.sessions_attended_count, 0) AS sessions_attended_count,
     NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
     CASE
-        WHEN NOT ISNULL(cheesy_frc_hours.optional_builds.date) THEN 0
-        WHEN NOT ISNULL(cheesy_frc_hours.scheduled_build_days.date) AND cheesy_frc_hours.scheduled_build_days.optional = 1 THEN 0
+        WHEN (#{optional_build_case("build_days.build_date")}) = 1 THEN 0
         ELSE 1
     END AS required,
     NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused,
@@ -132,9 +134,7 @@ WITH
         WHERE build_days.build_date BETWEEN ? AND ?
             AND (
                 ? = 0
-                OR (cheesy_frc_hours.optional_builds.date IS NULL
-                    AND (cheesy_frc_hours.scheduled_build_days.optional IS NULL
-                        OR cheesy_frc_hours.scheduled_build_days.optional = 0))
+                OR (#{optional_build_case("build_days.build_date")}) = 0
             )
     ),
     ordered_students AS (
@@ -160,8 +160,7 @@ SELECT DISTINCT
     COALESCE(ordered_students.sessions_attended_count, 0) AS sessions_attended_count,
     NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
     CASE
-        WHEN NOT ISNULL(cheesy_frc_hours.optional_builds.date) THEN 0
-        WHEN NOT ISNULL(cheesy_frc_hours.scheduled_build_days.date) AND cheesy_frc_hours.scheduled_build_days.optional = 1 THEN 0
+        WHEN (#{optional_build_case("filtered_build_days.build_date")}) = 1 THEN 0
         ELSE 1
     END AS required,
     NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused,
@@ -199,8 +198,7 @@ WITH build_info AS (
         students.id AS student_id,
         NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
         CASE
-            WHEN NOT ISNULL(cheesy_frc_hours.optional_builds.date) THEN 0
-            WHEN NOT ISNULL(cheesy_frc_hours.scheduled_build_days.date) AND cheesy_frc_hours.scheduled_build_days.optional = 1 THEN 0
+            WHEN (#{optional_build_case("build_days.build_date")}) = 1 THEN 0
             ELSE 1
         END AS required,
         NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused
@@ -249,9 +247,7 @@ WITH build_info AS (
             WHERE build_days.build_date BETWEEN ? AND ?
                 AND (
                     ? = 0
-                    OR (cheesy_frc_hours.optional_builds.date IS NULL
-                        AND (cheesy_frc_hours.scheduled_build_days.optional IS NULL
-                            OR cheesy_frc_hours.scheduled_build_days.optional = 0))
+                    OR (#{optional_build_case("build_days.build_date")}) = 0
                 )
         )
     SELECT DISTINCT
@@ -259,8 +255,7 @@ WITH build_info AS (
         students.id AS student_id,
         NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
         CASE
-            WHEN NOT ISNULL(cheesy_frc_hours.optional_builds.date) THEN 0
-            WHEN NOT ISNULL(cheesy_frc_hours.scheduled_build_days.date) AND cheesy_frc_hours.scheduled_build_days.optional = 1 THEN 0
+            WHEN (#{optional_build_case("filtered_build_days.build_date")}) = 1 THEN 0
             ELSE 1
         END AS required,
         NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused
@@ -309,8 +304,7 @@ WITH build_info AS (
         filtered_build_days.build_date,
         NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
         CASE
-            WHEN NOT ISNULL(cheesy_frc_hours.optional_builds.date) THEN 0
-            WHEN NOT ISNULL(cheesy_frc_hours.scheduled_build_days.date) AND cheesy_frc_hours.scheduled_build_days.optional = 1 THEN 0
+            WHEN (#{optional_build_case("filtered_build_days.build_date")}) = 1 THEN 0
             ELSE 1
         END AS required,
         NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused

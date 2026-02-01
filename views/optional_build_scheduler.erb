@@ -1,10 +1,10 @@
 <%= erb :header %>
 
 <div class="container">
-  <h2>Create an optional build</h2>
+  <h2>Mark a build day as optional</h2>
   <form action="" method="POST">
     <input type="hidden" name="referrer" value="<%= @referrer %>" />
-    <label for="date">Optional Build Date</label>
+    <label for="date">Build Date</label>
     <input type="date" name="date" value="<%= @date rescue "" %>">
     <p>
       Students will receive credit for attending optional builds but will

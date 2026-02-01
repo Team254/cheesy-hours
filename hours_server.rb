@@ -16,19 +16,33 @@ require "queries"
 
 module CheesyHours
   class Server < Sinatra::Base
+    DevUser = Struct.new(:name_display, :bcp_id) do
+      def has_permission?(_permission)
+        true
+      end
+    end
     use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
 
-    configure do
-      if ENV["HOURS_AUTO_SEED_TEST_STUDENTS"] == "1"
-        require_relative "script/seed_test_students"
-        count = (ENV["COUNT"] || "30").to_i
-        start_id = (ENV["START_ID"] || "900000").to_i
-        SeedTestStudents.run(count: count, start_id: start_id)
+    helpers do
+      def user_time_zone
+        @user_time_zone ||= ActiveSupport::TimeZone[USER_TIME_ZONE]
+      end
+
+      def parse_user_time(value)
+        value = value.to_s
+        raise ArgumentError, "Missing time" if value.strip.empty?
+        time = user_time_zone.parse(value)
+        raise ArgumentError, "Invalid time" if time.nil?
+        time.utc
       end
     end
     # Enforce authentication for all non-public routes.
     before do
-      if ENV["HOURS_BYPASS_AUTH"] == "1"
+      if ENV["DISABLE_AUTH"] == "1"
+        dev_bcp_id = (ENV["HOURS_BYPASS_BCP_ID"] || "900001").to_i
+        @user = DevUser.new("Dev User", dev_bcp_id)
+        session[:user] = @user
+      elsif ENV["HOURS_BYPASS_AUTH"] == "1"
         # Local dev bypass for Team 254 SSO.
         dev_bcp_id = (ENV["HOURS_BYPASS_BCP_ID"] || "900001").to_i
         @user = CheesyCommon::User.new(
@@ -46,7 +60,7 @@ module CheesyHours
             redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
           end
         else
-            session[:user] = @user
+          session[:user] = @user
         end
       end
     end
@@ -77,13 +91,14 @@ module CheesyHours
       unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
         halt(400, "An open lab session already exists for student #{@student.id}.")
       end
-      @student.add_lab_session(:time_in => Time.now)
+      @student.add_lab_session(:time_in => Time.now.utc)
 
       # Add an optional build to the database if necessary.
       # (If today is not mandatory and the optional build is not in the database)
-      currentUserTime = DateTime.now.in_time_zone(USER_TIME_ZONE)
-      if REQUIRED_BUILD_DAYS.include?(currentUserTime.strftime("%A")) &&
-          OptionalBuild.where(:date => currentUserTime.strftime("%Y-%m-%d")).empty?
+      currentUserTime = user_time_zone.now
+      if !REQUIRED_BUILD_DAYS.include?(currentUserTime.strftime("%A")) &&
+          OptionalBuild.where(:date => currentUserTime.strftime("%Y-%m-%d")).empty? &&
+          ScheduledBuildDay.where(:date => currentUserTime.strftime("%Y-%m-%d")).empty?
         OptionalBuild.create(:date => currentUserTime.strftime("%Y-%m-%d"))
       end
 
@@ -98,7 +113,7 @@ module CheesyHours
       unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
         halt(400, "An open lab session already exists for student #{@student.id}.")
       end
-      @student.add_lab_session(:time_in => Time.now)
+      @student.add_lab_session(:time_in => Time.now.utc)
 
       "Success"
     end
@@ -109,7 +124,7 @@ module CheesyHours
 
     get "/calendar" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      today = Date.today
+      today = user_time_zone.now.to_date
       requested_semester = params[:semester].to_s.downcase
       @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
                                                                                             when 1..5 then "spring"
@@ -163,7 +178,14 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       halt(400, "Invalid date.") if params[:date].nil?|| params[:date] == ""
 
-      OptionalBuild.create(:date => params[:date]) if OptionalBuild.where(:date => params[:date]).empty?
+      date = params[:date]
+      scheduled_build_day = ScheduledBuildDay.where(:date => date).first
+      if scheduled_build_day
+        scheduled_build_day.update(:optional => true)
+      else
+        ScheduledBuildDay.create(:date => date, :optional => true)
+      end
+      OptionalBuild.where(:date => date).delete
 
       redirect params[:referrer]
     end
@@ -177,7 +199,14 @@ module CheesyHours
 
     post "/delete_optional/:date" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      OptionalBuild.where(:date => params[:date]).delete
+      date = params[:date]
+      OptionalBuild.where(:date => date).delete
+      scheduled_build_day = ScheduledBuildDay.where(:date => date).first
+      if scheduled_build_day
+        scheduled_build_day.update(:optional => false)
+      else
+        ScheduledBuildDay.create(:date => date, :optional => false)
+      end
 
       redirect params[:referrer]
     end
@@ -201,7 +230,6 @@ module CheesyHours
 
       redirect params[:referrer]
     end
-
     get "/schedule_build_day" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @referrer = request.referrer
@@ -215,7 +243,10 @@ module CheesyHours
       halt(400, "Invalid optional value.") if params[:optional].nil?
 
       optional = params[:optional] == "1" || params[:optional] == "true"
-      ScheduledBuildDay.create(:date => params[:date], :optional => optional) if ScheduledBuildDay.where(:date => params[:date]).empty?
+      date = params[:date]
+      updated = ScheduledBuildDay.where(:date => date).update(:optional => optional)
+      ScheduledBuildDay.create(:date => date, :optional => optional) if updated == 0
+      OptionalBuild.where(:date => date).delete
 
       redirect params[:referrer]
     end
@@ -225,7 +256,7 @@ module CheesyHours
       @student = Student[@user.bcp_id]
       halt(400, "Student record not found. Please contact an administrator.") if @student.nil?
       
-      today = Date.today
+      today = user_time_zone.now.to_date
       requested_semester = params[:semester].to_s.downcase
       @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
                                                                                             when 1..5 then "spring"
@@ -249,7 +280,6 @@ module CheesyHours
       
       erb :my_attendance
     end
-
     get "/students/:id" do
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
@@ -268,7 +298,6 @@ module CheesyHours
     end
 
     post "/students/:id/mark_excused" do
-      date  Date.strptime(params[:date], "%Y-%m-%d") rescue nil
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       halt(400, "Missing date.") if params[:date].nil? || params[:date] == ""
       ExcusedSession.create(:date => params[:date], :student_id => params[:id])
@@ -277,7 +306,7 @@ module CheesyHours
 
     get "/students/:id/excusals/:date/delete" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id])
+      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id]).first
       halt(400, "Invalid excusal.") if @excusal.nil?
       @referrer = request.referrer
       erb :delete_excusal
@@ -285,7 +314,7 @@ module CheesyHours
 
     post "/students/:id/excusals/:date/delete" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id])
+      @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id]).first
       halt(400, "Invalid excusal.") if @excusal.nil?
       @excusal.delete
       redirect params[:referrer]
@@ -307,8 +336,8 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
-      student.add_lab_session(:time_in => DateTime.parse(params[:time_in]).utc,
-                              :time_out => DateTime.parse(params[:time_out]).utc,
+      student.add_lab_session(:time_in => parse_user_time(params[:time_in]),
+                              :time_out => params[:time_out].empty? ? nil : parse_user_time(params[:time_out]),
                               :notes => params[:notes],
                               :mentor_name => params[:time_out].empty? ? nil : @user.name_display)
       redirect params[:referrer] || "/leader_board"
@@ -334,8 +363,8 @@ module CheesyHours
         mentor_name = @lab_session.mentor_name
       end
       @lab_session.update(
-        :time_in => DateTime.parse(params[:time_in]).utc,
-        :time_out => DateTime.parse(params[:time_out]).utc,
+        :time_in => parse_user_time(params[:time_in]),
+        :time_out => params[:time_out].empty? ? nil : parse_user_time(params[:time_out]),
         :notes => params[:notes],
         :mentor_name => mentor_name,
         :excluded_from_total => params[:excluded_from_total] == "on"
@@ -363,7 +392,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if lab_session.nil?
-      lab_session.update(:time_out => Time.now, :mentor_name => @user.name_display)
+      lab_session.update(:time_out => Time.now.utc, :mentor_name => @user.name_display)
       redirect "/"
     end
 
@@ -444,9 +473,14 @@ module CheesyHours
       @start = params[:start_date]
       @end = params[:end_date]
       begin
-        offset = Time.now.in_time_zone(USER_TIME_ZONE).formatted_offset
-        start_date = DateTime.parse(@start).change(offset: offset)
-        end_date = DateTime.parse(@end == "" ? @start : @end).change(offset: offset) + 1
+        # Parse each date in the user's timezone to get correct DST offset per date
+        start_time = user_time_zone.parse(@start + " 00:00:00")
+        end_date_str = @end == "" ? @start : @end
+        end_time = user_time_zone.parse(end_date_str + " 23:59:59")
+        
+        # Convert to UTC and then to DateTime for comparison with lab_session columns
+        start_date = start_time.utc.to_datetime
+        end_date = end_time.utc.to_datetime
       rescue
         halt(400, "Invalid date.")
       end
@@ -475,12 +509,12 @@ module CheesyHours
       if params[:Body].strip.downcase == "gtfo"
         # Sign everyone out all at once.
         LabSession.where(:time_out => nil).each do |lab_session|
-          lab_session.update(:time_out => Time.now, :mentor => mentor)
+          lab_session.update(:time_out => Time.now.utc, :mentor => mentor)
         end
         halt(200, sms_response(["All students signed out."]))
       elsif params[:Body].strip.downcase == "here"
         # Register a mentor check-in.
-        MentorCheckin.create(mentor: mentor, time_in: Time.now)
+        MentorCheckin.create(mentor: mentor, time_in: Time.now.utc)
         halt(200, sms_response(["Checked in #{mentor.first_name} #{mentor.last_name}."]))
       end
 
@@ -497,7 +531,7 @@ module CheesyHours
           if lab_session.nil?
             "Error: #{student.first_name} #{student.last_name} is not signed in."
           else
-            lab_session.update(:time_out => Time.now, :mentor => mentor)
+            lab_session.update(:time_out => Time.now.utc, :mentor => mentor)
             "#{student.first_name} #{student.last_name} signed out after " +
                 "#{lab_session.duration_hours.round(1)} hours."
           end
@@ -570,7 +604,7 @@ module CheesyHours
       LabSession.where(:time_out => nil).each do |lab_session|
         offset_hours = CheesyCommon::Config.automatic_signout_offset_hours
         offset_hours -= 1 if Time.now.in_time_zone(USER_TIME_ZONE).dst?
-        signout_time = Time.now + offset_hours * 3600
+        signout_time = (Time.now + offset_hours * 3600).utc
 
         lab_session.update(:time_out => signout_time, :mentor_name => "Automatic - Didn't Sign Out")
       end
