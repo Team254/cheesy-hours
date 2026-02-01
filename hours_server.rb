@@ -477,9 +477,14 @@ module CheesyHours
       @start = params[:start_date]
       @end = params[:end_date]
       begin
-        offset = user_time_zone.now.formatted_offset
-        start_date = DateTime.parse(@start).change(offset: offset)
-        end_date = DateTime.parse(@end == "" ? @start : @end).change(offset: offset) + 1
+        # Parse each date in the user's timezone to get correct DST offset per date
+        start_time = user_time_zone.parse(@start + " 00:00:00")
+        end_date_str = @end == "" ? @start : @end
+        end_time = user_time_zone.parse(end_date_str + " 23:59:59")
+        
+        # Convert to UTC and then to DateTime for comparison with lab_session columns
+        start_date = start_time.utc.to_datetime
+        end_date = end_time.utc.to_datetime
       rescue
         halt(400, "Invalid date.")
       end
