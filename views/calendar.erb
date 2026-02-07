@@ -47,7 +47,7 @@
                         <% DB.fetch BUILD_DAYS_RANGE_QUERY, range_start, range_end, hide_optional do |build_date| %>
                               <th style="width:60px; height:45px; padding-left: 0; padding-right: 0; text-align: center" title="<%= build_date[:build_date].strftime("%A, %B %-d, %Y") %>">
                                  <%= build_date[:build_date].strftime("%m/%d") %>
-                                 <% if build_date[:optional] == 1 %>
+                                 <% if db_true?(build_date[:optional]) %>
                                     <br/>
                                     <a href="/delete_optional/<%=build_date[:build_date]%>"><small style="font-size: 0.65em; padding: 0px 8px;">mark required</small></a>
                                  <% else %>
@@ -73,13 +73,13 @@
                    <% student_id = row[:student_id] %>
                    <% session_id = row[:session_id] rescue nil %>
                    <% build_date = row[:build_date] %>
-                   <% attended = row[:attended] %>
-                   <% required = row[:required] %>
-                   <% excused = row[:excused] %>
+                   <% attended = db_true?(row[:attended]) %>
+                   <% required = db_true?(row[:required]) %>
+                   <% excused = db_true?(row[:excused]) %>
                   <% if (rowNum.modulo(studentsCnt) == 1) %>
                      <tr style="width: 61px">
                   <% end %>
-                  <% if (attended == 1) %>
+                  <% if attended %>
                      <td style="background-color: var(--present-color); min-width:50px; height:30px;">
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
@@ -91,7 +91,7 @@
                            </ul>
                         </div>
                      </td>
-                  <% elsif (excused == 1 && required == 1) %>
+                  <% elsif excused && required %>
                      <td style="--color-a: var(--excused-color); --color-b: var(--partial-color); min-width:50px; height:30px;" class="stripe-bg">
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
@@ -102,7 +102,7 @@
                            </ul>
                         </div>
                      </td>
-                  <% elsif (!(required == 1)) %>
+                  <% elsif !required %>
                      <td style="background-color: var(--excused-color); min-width:50px; height:30px;">
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">

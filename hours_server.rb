@@ -36,6 +36,18 @@ module CheesyHours
         Time.now.utc
       end
 
+      def db_true?(value)
+        case value
+        when true, 1
+          true
+        when false, 0, nil
+          false
+        else
+          str = value.to_s.strip.downcase
+          str == "1" || str == "true" || str == "t"
+        end
+      end
+
       def parse_user_time(value)
         value = value.to_s
         raise ArgumentError, "Missing time" if value.strip.empty?

@@ -63,7 +63,7 @@
       <% date_str = build_date[:build_date].strftime("%Y-%m-%d") %>
       <% session = @student.lab_sessions.select { |s| s.time_out && !s.excluded_from_total && s.time_in.in_time_zone(USER_TIME_ZONE).strftime("%Y-%m-%d") == date_str }.first %>
       <% excused = @student.excused_sessions.select { |e| e.date.strftime("%Y-%m-%d") == date_str }.first %>
-      <% optional = build_date[:optional] == 1 %>
+      <% optional = db_true?(build_date[:optional]) %>
       <% required = !optional %>
       <% attended = !session.nil? %>
       
