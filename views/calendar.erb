@@ -4,6 +4,8 @@
 <% semester_name = @semester.capitalize %>
 <% hide_optional = @hide_optional ? 1 : 0 %>
 <% DB.fetch "SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));" do end %>
+<% student_info_rows = DB.fetch(CALENDAR_STUDENT_INFO_RANGE_QUERY, range_start, range_end, hide_optional).all %>
+<% studentsCnt = student_info_rows.size %>
 <div class="container container-wide">
    <div style="display: flex; align-items: flex-start; flex-direction: column; gap: 0.5rem">
    <h2 style="margin-bottom: 0;">Calendar</h2>
@@ -67,8 +69,8 @@
          </div>
          <div id="calendar-grid-scroll" style="padding-bottom: 64px;">
             <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed column-based" id="color-grid">
-               <% studentsCnt = Student.count %>
                <% rowNum = 1 %>
+               <% if studentsCnt > 0 %>
                <% DB.fetch CALENDAR_BUILD_INFO_RANGE_QUERY, range_start, range_end, hide_optional do |row| %>
                    <% student_id = row[:student_id] %>
                    <% session_id = row[:session_id] rescue nil %>
@@ -131,6 +133,7 @@
                   <% end %>
                   <% rowNum += 1 %>
                <% end %>
+               <% end %>
             </table>
          </div>
       </div>
@@ -145,7 +148,7 @@
                 </tr>
               </thead>
               <tbody>
-                <% DB.fetch CALENDAR_STUDENT_INFO_RANGE_QUERY, range_start, range_end, hide_optional do |row|
+                <% student_info_rows.each do |row|
                   student = Student[row[:student_id]]
                   %>
                   <tr style="width: 410px">
