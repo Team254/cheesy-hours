@@ -25,7 +25,7 @@
           <td><%= session.mentor ? "#{session.mentor.first_name} #{session.mentor.last_name}" :
               session.mentor_name %></td>
           <td><%= session.excluded_from_total %></td>
-          <td><%= session.notes %></td>
+          <td><%= Rack::Utils.escape_html(session.notes) %></td>
           <% if @user.has_permission?("HOURS_EDIT") %>
             <td>
               <span style="white-space: nowrap;">

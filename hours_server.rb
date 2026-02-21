@@ -35,6 +35,11 @@ module CheesyHours
         raise ArgumentError, "Invalid time" if time.nil?
         time.utc
       end
+
+      def safe_referrer(fallback = "/")
+        ref = params[:referrer].to_s.gsub("\\", "/")
+        ref.start_with?("/") && !ref.start_with?("//") ? ref : fallback
+      end
     end
     # Enforce authentication for all non-public routes.
     before do
@@ -83,7 +88,8 @@ module CheesyHours
 
       # Restrict sign-ins to the lab's IP address ranges.
       ip_whitelist = CheesyCommon::Config.signin_ip_whitelist
-      if !ip_whitelist.empty? && ip_whitelist.none? { |ip| request.env["HTTP_X_REAL_IP"].start_with?(ip) }
+      real_ip = request.env["HTTP_X_REAL_IP"].to_s
+      if !ip_whitelist.empty? && (real_ip.empty? || ip_whitelist.none? { |ip| real_ip.start_with?(ip) })
         halt(400, "Invalid IP address. Must sign in from the Robotics Lab.")
       end
 
@@ -164,7 +170,7 @@ module CheesyHours
         end
       end
 
-      redirect params[:referrer]
+      redirect safe_referrer
     end
 
     get "/schedule_optional" do
@@ -187,7 +193,7 @@ module CheesyHours
       end
       OptionalBuild.where(:date => date).delete
 
-      redirect params[:referrer]
+      redirect safe_referrer
     end
 
     get "/delete_optional/:date" do
@@ -208,7 +214,7 @@ module CheesyHours
         ScheduledBuildDay.create(:date => date, :optional => false)
       end
 
-      redirect params[:referrer]
+      redirect safe_referrer
     end
 
     get "/build_days/:date/delete" do
@@ -228,7 +234,7 @@ module CheesyHours
       ExcusedSession.where(:date => date).delete
       LabSession.where(Sequel.lit("DATE(time_in) = ?", date)).update(:excluded_from_total => true)
 
-      redirect params[:referrer]
+      redirect safe_referrer
     end
     get "/schedule_build_day" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
@@ -248,7 +254,7 @@ module CheesyHours
       ScheduledBuildDay.create(:date => date, :optional => optional) if updated == 0
       OptionalBuild.where(:date => date).delete
 
-      redirect params[:referrer]
+      redirect safe_referrer
     end
 
     get "/my_attendance" do
@@ -301,7 +307,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       halt(400, "Missing date.") if params[:date].nil? || params[:date] == ""
       ExcusedSession.create(:date => params[:date], :student_id => params[:id])
-      redirect params[:referrer]
+      redirect safe_referrer
     end
 
     get "/students/:id/excusals/:date/delete" do
@@ -317,7 +323,7 @@ module CheesyHours
       @excusal = ExcusedSession.where(:date => params[:date], :student_id => params[:id]).first
       halt(400, "Invalid excusal.") if @excusal.nil?
       @excusal.delete
-      redirect params[:referrer]
+      redirect safe_referrer
     end
 
     get "/students/:id/new_lab_session" do
@@ -337,10 +343,10 @@ module CheesyHours
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
       student.add_lab_session(:time_in => parse_user_time(params[:time_in]),
-                              :time_out => params[:time_out].empty? ? nil : parse_user_time(params[:time_out]),
+                              :time_out => params[:time_out].to_s.empty? ? nil : parse_user_time(params[:time_out]),
                               :notes => params[:notes],
-                              :mentor_name => params[:time_out].empty? ? nil : @user.name_display)
-      redirect params[:referrer] || "/leader_board"
+                              :mentor_name => params[:time_out].to_s.empty? ? nil : @user.name_display)
+      redirect safe_referrer("/leader_board")
     end
 
     get "/lab_sessions/:id/edit" do
@@ -355,21 +361,21 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
-      if !params[:time_out].empty? && @lab_session.time_out.nil?
+      if !params[:time_out].to_s.empty? && @lab_session.time_out.nil?
         mentor_name = @user.name_display
-      elsif params[:time_out].empty? && @lab_session.time_out
+      elsif params[:time_out].to_s.empty? && @lab_session.time_out
         mentor_name = nil
       else
         mentor_name = @lab_session.mentor_name
       end
       @lab_session.update(
         :time_in => parse_user_time(params[:time_in]),
-        :time_out => params[:time_out].empty? ? nil : parse_user_time(params[:time_out]),
+        :time_out => params[:time_out].to_s.empty? ? nil : parse_user_time(params[:time_out]),
         :notes => params[:notes],
         :mentor_name => mentor_name,
         :excluded_from_total => params[:excluded_from_total] == "on"
       )
-      redirect params[:referrer] || "/leader_board"
+      redirect safe_referrer("/leader_board")
     end
 
     get "/lab_sessions/:id/delete" do
@@ -385,7 +391,7 @@ module CheesyHours
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
       @lab_session.delete
-      redirect params[:referrer] || "/leader_board"
+      redirect safe_referrer("/leader_board")
     end
 
     get "/lab_sessions/:id/sign_out" do
@@ -455,7 +461,7 @@ module CheesyHours
       mentor_checkin = MentorCheckin[params[:id]]
       halt(400, "Invalid mentor_checkin.") if mentor_checkin.nil?
       mentor_checkin.delete
-      redirect params[:referrer] || "/mentor_checkins"
+      redirect safe_referrer("/mentor_checkins")
     end
 
     get "/suspect_lab_sessions" do
@@ -487,12 +493,10 @@ module CheesyHours
       if start_date > end_date
         halt(400, "Start date must be before end date.")
       end
-      @query = []
-      LabSession.each do |lab_session|
-        if !lab_session.time_out.nil? && lab_session.time_out >= start_date && lab_session.time_in <= end_date
-          @query << lab_session
-        end
-      end
+      @query = LabSession.exclude(:time_out => nil)
+                         .where { time_out >= start_date }
+                         .where { time_in <= end_date }
+                         .all
       erb :search
     end
 
@@ -546,11 +550,18 @@ module CheesyHours
       end
 
       students = CheesyCommon::Auth.find_users_with_permission("EVENTS_SIGNUP_EVENT")
-      Student.truncate
+      imported_ids = []
       students.each do |student|
-        Student.create(:id => student.bcp_id, :first_name => student.name[1], :last_name => student.name[0])
+        existing = Student[student.bcp_id]
+        if existing
+          existing.update(:first_name => student.name[1], :last_name => student.name[0])
+        else
+          Student.create(:id => student.bcp_id, :first_name => student.name[1], :last_name => student.name[0])
+        end
+        imported_ids << student.bcp_id
       end
-      "Successfully imported #{Student.all.size} students."
+      Student.exclude(:id => imported_ids).delete
+      "Successfully imported #{imported_ids.size} students."
     end
 
     get "/csv_report" do
@@ -559,16 +570,17 @@ module CheesyHours
 
       rows = []
       rows << ["Last Name", "First Name", "Student ID", "Project Hours", "Total # of Sign Outs"].join(",")
-      Student.order_by(:last_name).each do |student|
+      Student.eager(:lab_sessions).order_by(:last_name).each do |student|
         rows << [student.last_name, student.first_name, student.id, student.project_hours, student.total_sessions_attended].join(",")
       end
       rows.join("\n")
     end
 
     def sms_response(messages)
+      escaped = messages.map { |m| CGI.escapeHTML(m) }
       <<-END
         <Response>
-          <Sms>#{messages.join("</Sms><Sms>")}</Sms>
+          <Sms>#{escaped.join("</Sms><Sms>")}</Sms>
         </Response>
       END
     end
@@ -579,8 +591,10 @@ module CheesyHours
 
       rows = []
       rows << ["Last Name", "First Name", "Student ID", "Attendance Percentage", "Project Hours", "Total # of Sign Outs"].join(",")
+      students_by_id = Student.eager(:lab_sessions).all.each_with_object({}) { |s, h| h[s.id] = s }
       DB.fetch CALENDAR_STUDENT_INFO_QUERY do |row|
-        student = Student[row[:student_id]]
+        student = students_by_id[row[:student_id]]
+        next unless student
         build_percentage = ((100 * row[:required_attended_count].to_f/row[:required_count]).to_i rescue "0").to_s + "%"
         rows << [student.last_name, student.first_name, student.id, build_percentage, student.project_hours, student.total_sessions_attended].join(",")
       end
@@ -592,7 +606,7 @@ module CheesyHours
         halt(400, "Need to be an administrator.")
       end
 
-      DB[:lab_sessions].where(Sequel[:time_out] < DateTime.new(2018, 1, 6.0)).delete
+      DB[:lab_sessions].where(Sequel[:time_out] < DateTime.new(2018, 1, 6)).delete
       "Reset Hours"
     end
 
@@ -603,7 +617,6 @@ module CheesyHours
 
       LabSession.where(:time_out => nil).each do |lab_session|
         offset_hours = CheesyCommon::Config.automatic_signout_offset_hours
-        offset_hours -= 1 if Time.now.in_time_zone(USER_TIME_ZONE).dst?
         signout_time = (Time.now + offset_hours * 3600).utc
 
         lab_session.update(:time_out => signout_time, :mentor_name => "Automatic - Didn't Sign Out")

@@ -79,6 +79,7 @@ WITH
                 COUNT(*) as sessions_attended_count,
                 student_id
             FROM cheesy_frc_hours.lab_sessions
+            WHERE NOT excluded_from_total
             GROUP BY student_id
         )
         SELECT

@@ -9,7 +9,7 @@
       <th>Project Hours</th>
       <th># Lab Sessions</th>
     </tr>
-    <% Student.sort_by(&:project_hours).reverse.each.with_index do |student, index| %>
+    <% Student.eager(:lab_sessions).all.sort_by(&:project_hours).reverse.each.with_index do |student, index| %>
       <tr>
         <td><%= index + 1 %></td>
         <td>
