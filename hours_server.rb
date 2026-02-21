@@ -37,7 +37,7 @@ module CheesyHours
       end
 
       def safe_referrer(fallback = "/")
-        ref = params[:referrer].to_s
+        ref = params[:referrer].to_s.gsub("\\", "/")
         ref.start_with?("/") && !ref.start_with?("//") ? ref : fallback
       end
     end
