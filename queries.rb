@@ -84,7 +84,7 @@ WITH
     ordered_students AS (
         WITH counts AS (
             SELECT
-                COUNT(*) as sessions_attended_count,
+                COUNT(DISTINCT #{utc_to_local_date("time_in")}) as sessions_attended_count,
                 student_id
             FROM cheesy_frc_hours.lab_sessions
             WHERE NOT excluded_from_total
@@ -153,7 +153,7 @@ WITH
     ordered_students AS (
         WITH counts AS (
             SELECT
-                COUNT(*) as sessions_attended_count,
+                COUNT(DISTINCT filtered_build_days.build_date) as sessions_attended_count,
                 cheesy_frc_hours.lab_sessions.student_id
             FROM cheesy_frc_hours.lab_sessions
             JOIN filtered_build_days ON #{utc_to_local_date("cheesy_frc_hours.lab_sessions.time_in")} = filtered_build_days.build_date
