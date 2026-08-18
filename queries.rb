@@ -97,17 +97,17 @@ WITH
             cheesy_frc_hours.students
         LEFT JOIN counts ON cheesy_frc_hours.students.id=counts.student_id
     )
-SELECT DISTINCT
+SELECT
     build_days.build_date,
     ordered_students.student_id,
     COALESCE(ordered_students.sessions_attended_count, 0) AS sessions_attended_count,
-    NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
+    MAX(NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in)) as attended,
     CASE
         WHEN (#{optional_build_case("build_days.build_date")}) = 1 THEN 0
         ELSE 1
     END AS required,
-    NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused,
-    cheesy_frc_hours.lab_sessions.id AS session_id
+    MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused,
+    MAX(cheesy_frc_hours.lab_sessions.id) AS session_id
     FROM
         build_days CROSS JOIN ordered_students
         LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=build_days.build_date
@@ -117,10 +117,14 @@ SELECT DISTINCT
         AND NOT cheesy_frc_hours.lab_sessions.excluded_from_total
     LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id=ordered_students.student_id
         AND cheesy_frc_hours.excused_sessions.date=build_days.build_date
+GROUP BY
+    build_days.build_date,
+    ordered_students.student_id,
+    ordered_students.sessions_attended_count
 ORDER BY
     build_date ASC,
     sessions_attended_count DESC,
-    student_id DESC;  -- fallback if students are tied in lab sessions
+    student_id DESC;
 """
 
 CALENDAR_BUILD_INFO_RANGE_QUERY = """
@@ -163,17 +167,17 @@ WITH
             cheesy_frc_hours.students
         LEFT JOIN counts ON cheesy_frc_hours.students.id=counts.student_id
     )
-SELECT DISTINCT
+SELECT
     filtered_build_days.build_date,
     ordered_students.student_id,
     COALESCE(ordered_students.sessions_attended_count, 0) AS sessions_attended_count,
-    NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
+    MAX(NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in)) as attended,
     CASE
         WHEN (#{optional_build_case("filtered_build_days.build_date")}) = 1 THEN 0
         ELSE 1
     END AS required,
-    NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused,
-    cheesy_frc_hours.lab_sessions.id AS session_id
+    MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused,
+    MAX(cheesy_frc_hours.lab_sessions.id) AS session_id
     FROM
         filtered_build_days CROSS JOIN ordered_students
         LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=filtered_build_days.build_date
@@ -183,10 +187,14 @@ SELECT DISTINCT
         AND NOT cheesy_frc_hours.lab_sessions.excluded_from_total
     LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id=ordered_students.student_id
         AND cheesy_frc_hours.excused_sessions.date=filtered_build_days.build_date
+GROUP BY
+    filtered_build_days.build_date,
+    ordered_students.student_id,
+    ordered_students.sessions_attended_count
 ORDER BY
     build_date ASC,
     sessions_attended_count DESC,
-    student_id DESC;  -- fallback if students are tied in lab sessions
+    student_id DESC;
 """
 
 CALENDAR_STUDENT_INFO_QUERY = """
