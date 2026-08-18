@@ -1,5 +1,13 @@
 REQUIRED_BUILD_DAYS_SQL = REQUIRED_BUILD_DAYS.map { |day| "'#{day}'" }.join(", ")
 
+def utc_to_local_date(utc_column)
+  # PDT (UTC-7): second Sunday of March 10:00 UTC to first Sunday of November 09:00 UTC
+  # PST (UTC-8): rest of year
+  pdt_start = "CONCAT(YEAR(#{utc_column}), '-03-', LPAD(8 + (8 - DAYOFWEEK(CONCAT(YEAR(#{utc_column}), '-03-01'))) % 7, 2, '0'), ' 10:00:00')"
+  pdt_end = "CONCAT(YEAR(#{utc_column}), '-11-', LPAD(1 + (8 - DAYOFWEEK(CONCAT(YEAR(#{utc_column}), '-11-01'))) % 7, 2, '0'), ' 09:00:00')"
+  "DATE(#{utc_column} - INTERVAL CASE WHEN #{utc_column} >= #{pdt_start} AND #{utc_column} < #{pdt_end} THEN 7 ELSE 8 END HOUR)"
+end
+
 def optional_build_case(build_date_ref)
   <<~SQL
     CASE
@@ -13,7 +21,7 @@ end
 
 BUILD_DAYS_QUERY = """
 WITH
-    lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
+    lab_build_days AS (SELECT DISTINCT #{utc_to_local_date("time_in")} AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
     optional_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.optional_builds),
     scheduled_build_days AS (SELECT date AS build_date, optional FROM cheesy_frc_hours.scheduled_build_days),
     all_build_days AS (
@@ -35,7 +43,7 @@ ORDER BY build_date ASC;
 
 BUILD_DAYS_RANGE_QUERY = """
 WITH
-    lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
+    lab_build_days AS (SELECT DISTINCT #{utc_to_local_date("time_in")} AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
     optional_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.optional_builds),
     scheduled_build_days AS (SELECT date AS build_date, optional FROM cheesy_frc_hours.scheduled_build_days),
     all_build_days AS (
@@ -63,7 +71,7 @@ ORDER BY build_date ASC;
 
 CALENDAR_BUILD_INFO_QUERY = """
 WITH
-    lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
+    lab_build_days AS (SELECT DISTINCT #{utc_to_local_date("time_in")} AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
     optional_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.optional_builds),
     scheduled_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.scheduled_build_days),
     build_days AS (
@@ -89,35 +97,39 @@ WITH
             cheesy_frc_hours.students
         LEFT JOIN counts ON cheesy_frc_hours.students.id=counts.student_id
     )
-SELECT DISTINCT
+SELECT
     build_days.build_date,
     ordered_students.student_id,
     COALESCE(ordered_students.sessions_attended_count, 0) AS sessions_attended_count,
-    NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
+    MAX(NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in)) as attended,
     CASE
         WHEN (#{optional_build_case("build_days.build_date")}) = 1 THEN 0
         ELSE 1
     END AS required,
-    NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused,
-    cheesy_frc_hours.lab_sessions.id AS session_id
+    MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused,
+    MAX(cheesy_frc_hours.lab_sessions.id) AS session_id
     FROM
         build_days CROSS JOIN ordered_students
         LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=build_days.build_date
         LEFT JOIN cheesy_frc_hours.scheduled_build_days ON cheesy_frc_hours.scheduled_build_days.date=build_days.build_date
-    LEFT JOIN cheesy_frc_hours.lab_sessions ON DATE(cheesy_frc_hours.lab_sessions.time_in) = build_days.build_date
+    LEFT JOIN cheesy_frc_hours.lab_sessions ON #{utc_to_local_date("cheesy_frc_hours.lab_sessions.time_in")} = build_days.build_date
         AND cheesy_frc_hours.lab_sessions.student_id=ordered_students.student_id
         AND NOT cheesy_frc_hours.lab_sessions.excluded_from_total
     LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id=ordered_students.student_id
         AND cheesy_frc_hours.excused_sessions.date=build_days.build_date
+GROUP BY
+    build_days.build_date,
+    ordered_students.student_id,
+    ordered_students.sessions_attended_count
 ORDER BY
     build_date ASC,
     sessions_attended_count DESC,
-    student_id DESC;  -- fallback if students are tied in lab sessions
+    student_id DESC;
 """
 
 CALENDAR_BUILD_INFO_RANGE_QUERY = """
 WITH
-    lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
+    lab_build_days AS (SELECT DISTINCT #{utc_to_local_date("time_in")} AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
     optional_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.optional_builds),
     scheduled_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.scheduled_build_days),
     build_days AS (
@@ -144,7 +156,7 @@ WITH
                 COUNT(*) as sessions_attended_count,
                 cheesy_frc_hours.lab_sessions.student_id
             FROM cheesy_frc_hours.lab_sessions
-            JOIN filtered_build_days ON DATE(cheesy_frc_hours.lab_sessions.time_in) = filtered_build_days.build_date
+            JOIN filtered_build_days ON #{utc_to_local_date("cheesy_frc_hours.lab_sessions.time_in")} = filtered_build_days.build_date
             WHERE NOT cheesy_frc_hours.lab_sessions.excluded_from_total
             GROUP BY cheesy_frc_hours.lab_sessions.student_id
         )
@@ -155,36 +167,40 @@ WITH
             cheesy_frc_hours.students
         LEFT JOIN counts ON cheesy_frc_hours.students.id=counts.student_id
     )
-SELECT DISTINCT
+SELECT
     filtered_build_days.build_date,
     ordered_students.student_id,
     COALESCE(ordered_students.sessions_attended_count, 0) AS sessions_attended_count,
-    NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in) as attended,
+    MAX(NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in)) as attended,
     CASE
         WHEN (#{optional_build_case("filtered_build_days.build_date")}) = 1 THEN 0
         ELSE 1
     END AS required,
-    NOT ISNULL(cheesy_frc_hours.excused_sessions.date) AS excused,
-    cheesy_frc_hours.lab_sessions.id AS session_id
+    MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused,
+    MAX(cheesy_frc_hours.lab_sessions.id) AS session_id
     FROM
         filtered_build_days CROSS JOIN ordered_students
         LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=filtered_build_days.build_date
         LEFT JOIN cheesy_frc_hours.scheduled_build_days ON cheesy_frc_hours.scheduled_build_days.date=filtered_build_days.build_date
-    LEFT JOIN cheesy_frc_hours.lab_sessions ON DATE(cheesy_frc_hours.lab_sessions.time_in) = filtered_build_days.build_date
+    LEFT JOIN cheesy_frc_hours.lab_sessions ON #{utc_to_local_date("cheesy_frc_hours.lab_sessions.time_in")} = filtered_build_days.build_date
         AND cheesy_frc_hours.lab_sessions.student_id=ordered_students.student_id
         AND NOT cheesy_frc_hours.lab_sessions.excluded_from_total
     LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id=ordered_students.student_id
         AND cheesy_frc_hours.excused_sessions.date=filtered_build_days.build_date
+GROUP BY
+    filtered_build_days.build_date,
+    ordered_students.student_id,
+    ordered_students.sessions_attended_count
 ORDER BY
     build_date ASC,
     sessions_attended_count DESC,
-    student_id DESC;  -- fallback if students are tied in lab sessions
+    student_id DESC;
 """
 
 CALENDAR_STUDENT_INFO_QUERY = """
 WITH build_info AS (
     WITH
-        lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
+        lab_build_days AS (SELECT DISTINCT #{utc_to_local_date("time_in")} AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
         optional_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.optional_builds),
         scheduled_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.scheduled_build_days),
         build_days AS (
@@ -207,7 +223,7 @@ WITH build_info AS (
         build_days CROSS JOIN cheesy_frc_hours.students
         LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=build_days.build_date
         LEFT JOIN cheesy_frc_hours.scheduled_build_days ON cheesy_frc_hours.scheduled_build_days.date=build_days.build_date
-        LEFT JOIN cheesy_frc_hours.lab_sessions ON DATE(cheesy_frc_hours.lab_sessions.time_in) = build_days.build_date
+        LEFT JOIN cheesy_frc_hours.lab_sessions ON #{utc_to_local_date("cheesy_frc_hours.lab_sessions.time_in")} = build_days.build_date
             AND cheesy_frc_hours.lab_sessions.student_id=cheesy_frc_hours.students.id
             AND NOT cheesy_frc_hours.lab_sessions.excluded_from_total
         LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id=cheesy_frc_hours.students.id
@@ -230,7 +246,7 @@ ORDER BY total_attended_count DESC, student_id DESC;
 CALENDAR_STUDENT_INFO_RANGE_QUERY = """
 WITH build_info AS (
     WITH
-        lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
+        lab_build_days AS (SELECT DISTINCT #{utc_to_local_date("time_in")} AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
         optional_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.optional_builds),
         scheduled_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.scheduled_build_days),
         build_days AS (
@@ -264,7 +280,7 @@ WITH build_info AS (
         filtered_build_days CROSS JOIN cheesy_frc_hours.students
         LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=filtered_build_days.build_date
         LEFT JOIN cheesy_frc_hours.scheduled_build_days ON cheesy_frc_hours.scheduled_build_days.date=filtered_build_days.build_date
-        LEFT JOIN cheesy_frc_hours.lab_sessions ON DATE(cheesy_frc_hours.lab_sessions.time_in) = filtered_build_days.build_date
+        LEFT JOIN cheesy_frc_hours.lab_sessions ON #{utc_to_local_date("cheesy_frc_hours.lab_sessions.time_in")} = filtered_build_days.build_date
             AND cheesy_frc_hours.lab_sessions.student_id=cheesy_frc_hours.students.id
             AND NOT cheesy_frc_hours.lab_sessions.excluded_from_total
         LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id=cheesy_frc_hours.students.id
@@ -288,7 +304,7 @@ ORDER BY total_attended_count DESC, student_id DESC;
 STUDENT_ATTENDANCE_RANGE_QUERY = """
 WITH build_info AS (
     WITH
-        lab_build_days AS (SELECT DISTINCT DATE(time_in) AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
+        lab_build_days AS (SELECT DISTINCT #{utc_to_local_date("time_in")} AS build_date FROM cheesy_frc_hours.lab_sessions WHERE NOT excluded_from_total),
         optional_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.optional_builds),
         scheduled_build_days AS (SELECT date AS build_date FROM cheesy_frc_hours.scheduled_build_days),
         build_days AS (
@@ -313,7 +329,7 @@ WITH build_info AS (
         filtered_build_days
         LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=filtered_build_days.build_date
         LEFT JOIN cheesy_frc_hours.scheduled_build_days ON cheesy_frc_hours.scheduled_build_days.date=filtered_build_days.build_date
-        LEFT JOIN cheesy_frc_hours.lab_sessions ON DATE(cheesy_frc_hours.lab_sessions.time_in) = filtered_build_days.build_date
+        LEFT JOIN cheesy_frc_hours.lab_sessions ON #{utc_to_local_date("cheesy_frc_hours.lab_sessions.time_in")} = filtered_build_days.build_date
             AND cheesy_frc_hours.lab_sessions.student_id = ?
             AND NOT cheesy_frc_hours.lab_sessions.excluded_from_total
         LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id = ?
