@@ -232,7 +232,7 @@ module CheesyHours
       OptionalBuild.where(:date => date).delete
       ScheduledBuildDay.where(:date => date).delete
       ExcusedSession.where(:date => date).delete
-      LabSession.where(Sequel.lit("DATE(CONVERT_TZ(time_in, '+00:00', '#{USER_TIME_ZONE}')) = ?", date)).update(:excluded_from_total => true)
+      LabSession.where(Sequel.lit("#{utc_to_local_date('time_in')} = ?", date)).update(:excluded_from_total => true)
 
       redirect safe_referrer
     end
