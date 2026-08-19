@@ -257,7 +257,7 @@ module CheesyHours
         if @user.nil?
           session[:user] = nil
           unless ["/", "/sms", "/signout_automatic"].include?(request.path)
-            redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
+            redirect "#{CheesyCommon::Config.members_url}?site=ftchours&path=#{request.path}"
           end
         else
           session[:user] = @user
