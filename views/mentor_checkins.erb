@@ -12,6 +12,7 @@
       </thead>
       <tbody>
         <% @mentor_checkins.each do |checkin| %>
+          <% next unless checkin.mentor %>
           <tr>
             <td><%= checkin.mentor.first_name %> <%= checkin.mentor.last_name %></td>
             <td><%= checkin.time_in.in_time_zone(USER_TIME_ZONE).strftime("%D %l:%M %p") %></td>

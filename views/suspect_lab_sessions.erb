@@ -13,7 +13,7 @@
         <th>Notes</th>
         <th>Action</th>
       </tr>
-      <% LabSession.where(excluded_from_total: false).all.select { |s| s.duration_hours > 18 }.
+      <% LabSession.where(excluded_from_total: false).all.select { |s| s.student && s.duration_hours > 18 }.
         sort_by(&:duration_hours).reverse.each do |session| %>
         <tr>
           <td><%= session.student.first_name %> <%= session.student.last_name %></td>

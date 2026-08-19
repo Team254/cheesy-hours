@@ -22,6 +22,7 @@
         <th>Notes</th>
       </tr>
       <% @query.sort_by(&:id).each do |session| %>
+        <% next unless session.student %>
         <tr>
           <td>
             <a href="/students/<%= session.student.id %>"><%= session.student.first_name %> <%= session.student.last_name %></a>
