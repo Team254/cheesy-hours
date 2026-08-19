@@ -549,7 +549,8 @@ module CheesyHours
         halt(400, "Need to be an administrator.")
       end
 
-      students = CheesyCommon::Auth.find_users_with_permission("EVENTS_SIGNUP_EVENT")
+      team = begin; CheesyCommon::Config.team; rescue CheesyCommon::Config::NoValueFoundError; nil; end
+      students = CheesyCommon::Auth.find_users_with_permission("EVENTS_SIGNUP_EVENT", team: team)
       imported_ids = []
       students.each do |student|
         existing = Student[student.bcp_id]
