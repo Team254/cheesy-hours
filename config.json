@@ -5,7 +5,7 @@
     "db_database": "cheesy_frc_hours",
     "port": 9006,
     "automatic_signout_offset_hours": -2,
-    "team": "FRC"
+    "program": "FRC"
   },
   "dev": {
     "db_password": "correcthorsebatterystaple",
