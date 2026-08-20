@@ -53,7 +53,7 @@ module CheesyHours
         @user = CheesyCommon::User.new(
           "name_display" => "Dev User",
           "bcp_id" => dev_bcp_id,
-          "permissions" => ["HOURS_SIGN_IN", "HOURS_EDIT", "HOURS_DELETE", "HOURS_VIEW_REPORT", "DATABASE_ADMIN"]
+          "permissions" => ["HOURS_SIGN_IN", "HOURS_VIEW", "HOURS_EDIT", "HOURS_DELETE", "HOURS_VIEW_REPORT", "DATABASE_ADMIN"]
         )
         session[:user] = @user
       else
@@ -129,7 +129,7 @@ module CheesyHours
     end
 
     get "/calendar" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW")
       today = user_time_zone.now.to_date
       requested_semester = params[:semester].to_s.downcase
       @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
@@ -395,7 +395,7 @@ module CheesyHours
     end
 
     get "/lab_sessions/:id/sign_out" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW")
       lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if lab_session.nil?
       lab_session.update(:time_out => Time.now.utc, :mentor_name => @user.name_display)
@@ -470,12 +470,12 @@ module CheesyHours
     end
 
     get "/search" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW")
       erb :search
     end
 
     post "/search" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW")
       @start = params[:start_date]
       @end = params[:end_date]
       begin
