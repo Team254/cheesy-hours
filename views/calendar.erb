@@ -130,27 +130,47 @@
                      </td>
                   <% elsif (!(required == 1)) %>
                      <td style="background-color: var(--excused-color); min-width:50px; height:30px;">
-                        <% if @user.has_permission?("HOURS_EDIT") %>
+                        <% if @user.has_permission?("HOURS_EDIT") || (session_id && @user.has_permission?("HOURS_DELETE")) %>
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
                               <span class="caret"></span>
                            </a>
                            <ul class="dropdown-menu">
+                              <% if session_id %>
+                                 <% if @user.has_permission?("HOURS_EDIT") %>
+                              <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
+                                 <% end %>
+                                 <% if @user.has_permission?("HOURS_DELETE") %>
+                              <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
+                                 <% end %>
+                              <% else %>
                               <li><a href="/students/<%=student_id%>/new_lab_session?date=<%=build_date%>">Add Lab Session</a></li>
+                              <% end %>
                            </ul>
                         </div>
                         <% end %>
                      </td>
                   <% else %>
                      <td style = "background-color: var(--missing-color); min-width:50px; height:30px;">
-                        <% if @user.has_permission?("HOURS_EDIT") %>
+                        <% if @user.has_permission?("HOURS_EDIT") || (session_id && @user.has_permission?("HOURS_DELETE")) %>
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
                               <span class="caret"></span>
                            </a>
                            <ul class="dropdown-menu">
+                              <% if session_id %>
+                                 <% if @user.has_permission?("HOURS_EDIT") %>
+                              <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
+                                 <% end %>
+                              <% else %>
                               <li><a href="/students/<%=student_id%>/new_lab_session?date=<%=build_date%>">Add Lab Session</a></li>
+                              <% end %>
+                              <% if @user.has_permission?("HOURS_EDIT") %>
                               <li><a href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
+                              <% end %>
+                              <% if session_id && @user.has_permission?("HOURS_DELETE") %>
+                              <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
+                              <% end %>
                            </ul>
                         </div>
                         <% end %>
