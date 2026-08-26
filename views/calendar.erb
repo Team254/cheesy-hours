@@ -41,10 +41,11 @@
       </thead>
    </table>
    </div>
+      <div id="calendar-sticky-gap"></div>
       <div class="cheesy-row" style="clear: right">
         <div class="column2">
-         <div id="calendar-grid-scroll" style="padding-bottom: 64px;">
          <div id="calendar-header-sticky">
+            <div id="calendar-header-scroll">
             <table style="table-layout: fixed; margin-bottom: 0px" class="table table-striped table-bordered table-condensed calendar-date-table" id="calendar-date-header">
                   <thead>
                      <tr>
@@ -84,7 +85,12 @@
                      </tr>
                   </thead>
             </table>
+            </div>
+            <div id="calendar-scroll-proxy" tabindex="0" role="region" aria-label="Scroll attendance dates horizontally" aria-controls="calendar-grid-scroll">
+               <div id="calendar-scroll-proxy-content"></div>
+            </div>
          </div>
+         <div id="calendar-grid-scroll" style="padding-bottom: 64px;">
             <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed column-based" id="color-grid">
                <% rowNum = 1 %>
                <% if studentsCnt > 0 %>
@@ -205,8 +211,47 @@
 </div>
 <script>
     var $gridScroll = $('#calendar-grid-scroll');
-    var left = $gridScroll.width() * 2;
-    $gridScroll.scrollLeft(left);
+    var gridScroll = $gridScroll[0];
+    var $proxyScroll = $('#calendar-scroll-proxy');
+    var proxyScroll = $proxyScroll[0];
+    var proxyContent = $('#calendar-scroll-proxy-content')[0];
+    var $headerTable = $('#calendar-date-header');
+
+    function maxCalendarScrollLeft() {
+        return Math.max(0, gridScroll.scrollWidth - gridScroll.clientWidth);
+    }
+
+    function applyCalendarScrollLeft(scrollLeft) {
+        scrollLeft = Math.max(0, Math.min(maxCalendarScrollLeft(), Math.round(scrollLeft)));
+        $headerTable.css('transform', 'translateX(' + (-scrollLeft) + 'px)');
+        if (gridScroll.scrollLeft !== scrollLeft) {
+            gridScroll.scrollLeft = scrollLeft;
+        }
+        if (proxyScroll.scrollLeft !== scrollLeft) {
+            proxyScroll.scrollLeft = scrollLeft;
+        }
+    }
+
+    gridScroll.addEventListener('scroll', function () {
+        applyCalendarScrollLeft(gridScroll.scrollLeft);
+    });
+    proxyScroll.addEventListener('scroll', function () {
+        applyCalendarScrollLeft(proxyScroll.scrollLeft);
+    });
+
+    function refreshCalendarScrollProxy() {
+        proxyContent.style.width = gridScroll.scrollWidth + 'px';
+        $proxyScroll.toggle(maxCalendarScrollLeft() > 0);
+        document.documentElement.style.setProperty(
+            '--calendar-header-block-height', $('#calendar-header-sticky').outerHeight() + 'px');
+        applyCalendarScrollLeft(gridScroll.scrollLeft);
+    }
+
+    document.documentElement.classList.add('calendar-scroll-proxy-ready');
+    refreshCalendarScrollProxy();
+    applyCalendarScrollLeft($gridScroll.width() * 2);
+
+    $(window).on('resize', refreshCalendarScrollProxy);
 
     $('#color-grid').children().children('tr:nth-last-child(2)').children().children().children(".dropdown-menu").addClass("pull-right")
     $('#color-grid').children().children('tr:nth-last-child(1)').children().children().children(".dropdown-menu").addClass("pull-right")
