@@ -22,7 +22,7 @@
     <small>Range: <%= semester_name %> <%= @semester_year %> (<%= @semester_start.strftime("%b %-d") %> - <%= @semester_end.strftime("%b %-d") %>)</small>
   </form>
 
-  <% summary_row = DB.fetch(STUDENT_ATTENDANCE_RANGE_QUERY, range_start, range_end, @student.id, @student.id).first %>
+  <% summary_row = DB.fetch(STUDENT_ATTENDANCE_RANGE_QUERY, range_start, range_end, @student.id, @student.id, @student.id).first %>
   <% if summary_row %>
     <div style="margin-bottom: 1.5rem;">
       <h3>Summary for <%= semester_name %> <%= @semester_year %></h3>
@@ -56,22 +56,36 @@
     <tr>
       <th>Date</th>
       <th>Day</th>
+      <th>Time</th>
       <th>Status</th>
       <th>Type</th>
     </tr>
     <% DB.fetch BUILD_DAYS_RANGE_QUERY, range_start, range_end, hide_optional do |build_date| %>
       <% date_str = build_date[:build_date].strftime("%Y-%m-%d") %>
-      <% session = @student.lab_sessions.select { |s| s.time_out && !s.excluded_from_total && s.time_in.in_time_zone(USER_TIME_ZONE).strftime("%Y-%m-%d") == date_str }.first %>
+      <% timed_build = build_date[:starts_at] && build_date[:ends_at] %>
+      <% session = @student.lab_sessions.select { |s| s.time_out && !s.excluded_from_total && s.time_in.in_time_zone(USER_TIME_ZONE).strftime("%Y-%m-%d") == date_str }.first unless timed_build %>
       <% excused = @student.excused_sessions.select { |e| e.date.strftime("%Y-%m-%d") == date_str }.first %>
       <% optional = build_date[:optional] == 1 %>
       <% required = !optional %>
-      <% attended = !session.nil? %>
+      <% finalized = !timed_build || build_date[:ends_at] <= Time.now.utc %>
+      <% attended = timed_build ? @student.attended_timed_build?(build_date[:starts_at], build_date[:ends_at]) : !session.nil? %>
       
       <tr>
         <td><%= build_date[:build_date].strftime("%m/%d/%Y") %></td>
         <td><%= build_date[:build_date].strftime("%A") %></td>
         <td>
-          <% if attended %>
+          <% if timed_build %>
+            <%= build_date[:starts_at].in_time_zone(USER_TIME_ZONE).strftime("%-l:%M %p") %>–<%= build_date[:ends_at].in_time_zone(USER_TIME_ZONE).strftime("%-l:%M %p") %>
+          <% else %>
+            —
+          <% end %>
+        </td>
+        <td>
+          <% if !finalized && build_date[:starts_at] > Time.now.utc %>
+            <span style="color: var(--scheduled-color); font-weight: bold;">Scheduled</span>
+          <% elsif !finalized %>
+            <span style="color: var(--scheduled-color); font-weight: bold;">In progress</span>
+          <% elsif attended %>
             <span style="color: var(--present-color); font-weight: bold;">Present</span>
           <% elsif excused && required %>
             <span style="color: var(--partial-color); font-weight: bold;">Excused</span>

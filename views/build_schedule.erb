@@ -1,0 +1,295 @@
+<%= erb :header %>
+<%
+  today = user_time_zone.now.to_date
+  editing = !@edit_date.nil?
+  edit_date = editing ? @edit_date : today
+  edit_start_hour = @edit_build && @edit_build.starts_at ? @edit_build.starts_at.in_time_zone(USER_TIME_ZONE).hour : 15
+  edit_end_hour = @edit_build && @edit_build.ends_at ? @edit_build.ends_at.in_time_zone(USER_TIME_ZONE).hour : 23
+  format_hour = lambda do |hour|
+    suffix = hour < 12 ? "AM" : "PM"
+    display_hour = hour % 12
+    display_hour = 12 if display_hour == 0
+    "#{display_hour}:00 #{suffix}"
+  end
+%>
+
+<div class="container">
+  <h2>Build Schedule</h2>
+
+  <% if params[:created] || params[:updated] || params[:skipped] %>
+    <div class="alert alert-success">
+      Created <%= params[:created].to_i %>, updated <%= params[:updated].to_i %>, and skipped <%= params[:skipped].to_i %> build days.
+    </div>
+  <% end %>
+  <% if params[:deleted] %>
+    <div class="alert alert-success">
+      Removed <%= params[:deleted].to_i %> build days.
+    </div>
+  <% end %>
+  <% if params[:batch_removed] || params[:batch_restored] || params[:batch_skipped] %>
+    <div class="alert alert-success">
+      Undid scheduling batch: removed <%= params[:batch_removed].to_i %>, restored <%= params[:batch_restored].to_i %>, and skipped <%= params[:batch_skipped].to_i %> builds changed afterward.
+    </div>
+  <% end %>
+
+  <h3><%= editing ? "Edit Build" : "Schedule Builds" %></h3>
+  <form action="/build_schedule" method="POST" id="build-schedule-form">
+    <% if editing %>
+      <input type="hidden" name="schedule_mode" value="single" />
+      <input type="hidden" name="date" value="<%= edit_date.strftime("%Y-%m-%d") %>" />
+      <input type="hidden" name="replace_existing" value="1" />
+      <p><strong><%= edit_date.strftime("%A, %B %-d, %Y") %></strong></p>
+    <% else %>
+      <p>
+        <label class="radio inline">
+          <input type="radio" name="schedule_mode" value="single" /> One day
+        </label>
+        <label class="radio inline">
+          <input type="radio" name="schedule_mode" value="repeating" checked /> Repeating
+        </label>
+      </p>
+
+      <div id="single-build-fields" style="display: none;">
+        <label for="single-build-date">Date</label>
+        <input id="single-build-date" type="date" name="date" value="<%= today.strftime("%Y-%m-%d") %>" />
+      </div>
+
+      <div id="repeating-build-fields">
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+          <label>From<br><input id="range-start" type="date" name="range_start" value="<%= today.strftime("%Y-%m-%d") %>" /></label>
+          <label>Through<br><input id="range-end" type="date" name="range_end" value="<%= (today + 90).strftime("%Y-%m-%d") %>" /></label>
+        </div>
+        <label>Days</label>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+          <% [[1, "Mon"], [2, "Tue"], [3, "Wed"], [4, "Thu"], [5, "Fri"], [6, "Sat"], [0, "Sun"]].each do |weekday, label| %>
+            <label class="checkbox inline"><input type="checkbox" name="weekdays[]" value="<%= weekday %>" /> <%= label %></label>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+      <label>Starts<br>
+        <select name="start_hour" id="start-hour">
+          <% (0..22).each do |hour| %>
+            <option value="<%= hour %>" <%= "selected" if hour == edit_start_hour %>><%= format_hour.call(hour) %></option>
+          <% end %>
+        </select>
+      </label>
+      <label>Ends<br>
+        <select name="end_hour" id="end-hour">
+          <% (1..23).each do |hour| %>
+            <option value="<%= hour %>" <%= "selected" if hour == edit_end_hour %>><%= format_hour.call(hour) %></option>
+          <% end %>
+        </select>
+      </label>
+    </div>
+
+    <label class="radio"><input type="radio" name="optional" value="0" <%= "checked" unless @edit_optional %> /> Required</label>
+    <label class="radio"><input type="radio" name="optional" value="1" <%= "checked" if @edit_optional %> /> Optional</label>
+
+    <% unless editing %>
+      <label class="checkbox">
+        <input type="checkbox" name="replace_existing" value="1" /> Replace build days already scheduled on matching dates
+      </label>
+      <button type="button" class="btn" id="preview-builds">Preview builds</button>
+    <% end %>
+    <button type="submit" class="btn btn-success"><%= editing ? "Save Changes" : "Schedule Builds" %></button>
+    <% if editing %><a href="/build_schedule" class="btn">Cancel</a><% end %>
+  </form>
+
+  <% unless editing %>
+    <div id="build-preview" style="display: none; margin-top: 1.5rem;">
+      <h3>Preview</h3>
+      <p id="build-preview-summary"></p>
+      <table class="table table-striped table-bordered table-condensed" style="width: auto;">
+        <thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Conflict</th></tr></thead>
+        <tbody id="build-preview-rows"></tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <h3 style="margin-top: 2rem;">Upcoming Builds</h3>
+  <% if @upcoming_builds.empty? %>
+    <p>No upcoming builds are scheduled.</p>
+  <% else %>
+    <form action="/build_schedule/delete_selected" method="POST">
+      <table class="table table-striped table-bordered table-condensed">
+        <thead><tr><th><input type="checkbox" id="select-all-builds" aria-label="Select all upcoming builds" /></th><th>Date</th><th>Time</th><th>Type</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @upcoming_builds.each do |build| %>
+            <tr>
+              <td><input type="checkbox" class="build-selection" name="dates[]" value="<%= build.date.strftime("%Y-%m-%d") %>" aria-label="Select <%= build.date.strftime("%B %-d, %Y") %>" /></td>
+              <td><%= build.date.strftime("%a, %b %-d, %Y") %></td>
+              <td>
+                <% if build.starts_at && build.ends_at %>
+                  <%= build.starts_at.in_time_zone(USER_TIME_ZONE).strftime("%-l:%M %p") %>–<%= build.ends_at.in_time_zone(USER_TIME_ZONE).strftime("%-l:%M %p") %>
+                <% else %>
+                  Time not configured
+                <% end %>
+              </td>
+              <td><%= build.optional ? "Optional" : "Required" %></td>
+              <td style="white-space: nowrap;">
+                <a class="btn btn-small" href="/build_schedule?date=<%= build.date.strftime("%Y-%m-%d") %>">Edit</a>
+                <button
+                  type="submit"
+                  class="btn btn-danger btn-small"
+                  formaction="/build_schedule/<%= build.date.strftime("%Y-%m-%d") %>/delete"
+                  onclick="return confirm('Remove this scheduled build? Project-hour sessions will not be deleted.');"
+                >Remove</button>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <button
+        type="submit"
+        class="btn btn-danger"
+        id="remove-selected-builds"
+        disabled
+        onclick="return confirm('Remove the selected scheduled builds? Project-hour sessions will not be deleted.');"
+      >Remove selected</button>
+    </form>
+  <% end %>
+
+  <h3 style="margin-top: 2rem;">Scheduling History</h3>
+  <% if @schedule_batches.empty? %>
+    <p>No repeating schedules have been recorded.</p>
+  <% else %>
+    <table class="table table-striped table-bordered table-condensed">
+      <thead><tr><th>Created</th><th>Dates</th><th>Days</th><th>Time</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        <% @schedule_batches.each do |batch| %>
+          <% entries = @schedule_batch_entries[batch[:id]] || [] %>
+          <% next if entries.empty? %>
+          <% dates = entries.map { |entry| entry[:date] } %>
+          <% first_entry = entries.first %>
+          <% weekday_names = %w[Sun Mon Tue Wed Thu Fri Sat] %>
+          <% weekdays = dates.map(&:wday).uniq.sort_by { |weekday| weekday == 0 ? 7 : weekday }.map { |weekday| weekday_names[weekday] } %>
+          <tr>
+            <td>
+              <%= batch[:created_at].in_time_zone(USER_TIME_ZONE).strftime("%b %-d, %Y %-l:%M %p") %><br>
+              <small><%= batch[:created_by_name] %></small>
+            </td>
+            <td>
+              <%= dates.first.strftime("%b %-d") %>–<%= dates.last.strftime("%b %-d, %Y") %><br>
+              <small><%= entries.length %> builds</small>
+            </td>
+            <td><%= weekdays.join("/") %></td>
+            <td><%= first_entry[:scheduled_starts_at].in_time_zone(USER_TIME_ZONE).strftime("%-l:%M %p") %>–<%= first_entry[:scheduled_ends_at].in_time_zone(USER_TIME_ZONE).strftime("%-l:%M %p") %></td>
+            <td><%= first_entry[:scheduled_optional] ? "Optional" : "Required" %></td>
+            <td>
+              <% if batch[:undone_at] %>
+                Undone<br><small><%= batch[:undone_at].in_time_zone(USER_TIME_ZONE).strftime("%b %-d, %-l:%M %p") %></small>
+              <% else %>
+                Active
+              <% end %>
+            </td>
+            <td style="white-space: nowrap;">
+              <% unless batch[:undone_at] %>
+                <form action="/build_schedule/batches/<%= batch[:id] %>/undo" method="POST" style="display: inline;" onsubmit="return confirm('Undo this scheduling batch? Newly created builds will be removed, replaced builds will be restored, and project-hour sessions will not be deleted.');">
+                  <button type="submit" class="btn btn-danger btn-small">Undo batch</button>
+                </form>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</div>
+
+<% unless editing %>
+<script>
+  var existingBuildDates = <%= @upcoming_builds.map { |build| build.date.strftime("%Y-%m-%d") }.to_json %>;
+
+  function selectedScheduleMode() {
+    return $('input[name="schedule_mode"]:checked').val();
+  }
+
+  function updateScheduleModeFields() {
+    var repeating = selectedScheduleMode() === 'repeating';
+    $('#single-build-fields').toggle(!repeating);
+    $('#repeating-build-fields').toggle(repeating);
+  }
+
+  function localDateFromInput(value) {
+    var parts = value.split('-').map(Number);
+    return new Date(parts[0], parts[1] - 1, parts[2], 12);
+  }
+
+  function dateInputValue(date) {
+    var month = ('0' + (date.getMonth() + 1)).slice(-2);
+    var day = ('0' + date.getDate()).slice(-2);
+    return date.getFullYear() + '-' + month + '-' + day;
+  }
+
+  function displayHour(hour) {
+    var suffix = hour < 12 ? 'AM' : 'PM';
+    var display = hour % 12 || 12;
+    return display + ':00 ' + suffix;
+  }
+
+  $('input[name="schedule_mode"]').on('change', updateScheduleModeFields);
+  updateScheduleModeFields();
+
+  $('#preview-builds').on('click', function() {
+    var dates = [];
+    if (selectedScheduleMode() === 'single') {
+      var singleValue = $('#single-build-date').val();
+      if (singleValue) { dates.push(localDateFromInput(singleValue)); }
+    } else {
+      var startValue = $('#range-start').val();
+      var endValue = $('#range-end').val();
+      var weekdays = $('input[name="weekdays[]"]:checked').map(function() { return Number(this.value); }).get();
+      if (startValue && endValue && weekdays.length) {
+        var cursor = localDateFromInput(startValue);
+        var end = localDateFromInput(endValue);
+        while (cursor <= end && dates.length <= 730) {
+          if (weekdays.indexOf(cursor.getDay()) !== -1) { dates.push(new Date(cursor)); }
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      }
+    }
+
+    var startHour = Number($('#start-hour').val());
+    var endHour = Number($('#end-hour').val());
+    if (endHour <= startHour) {
+      $('#build-preview-summary').text('Build end must be after build start.');
+      $('#build-preview-rows').empty();
+      $('#build-preview').show();
+      return;
+    }
+    var type = $('input[name="optional"]:checked').val() === '1' ? 'Optional' : 'Required';
+    var conflictCount = 0;
+    var rows = dates.map(function(date) {
+      var dateValue = dateInputValue(date);
+      var conflict = existingBuildDates.indexOf(dateValue) !== -1;
+      if (conflict) { conflictCount += 1; }
+      return '<tr><td>' + dateValue + '</td><td>' + displayHour(startHour) + '–' + displayHour(endHour) + '</td><td>' + type + '</td><td>' + (conflict ? 'Already scheduled' : '—') + '</td></tr>';
+    });
+    var summary = dates.length + ' build day' + (dates.length === 1 ? '' : 's') + ' matched.';
+    if (conflictCount) { summary += ' ' + conflictCount + ' already scheduled.'; }
+    $('#build-preview-summary').text(summary);
+    $('#build-preview-rows').html(rows.join(''));
+    $('#build-preview').show();
+  });
+
+  function updateBuildSelectionControls() {
+    var selectedCount = $('.build-selection:checked').length;
+    var totalCount = $('.build-selection').length;
+    $('#remove-selected-builds').prop('disabled', selectedCount === 0);
+    $('#select-all-builds').prop('checked', totalCount > 0 && selectedCount === totalCount);
+    $('#select-all-builds').prop('indeterminate', selectedCount > 0 && selectedCount < totalCount);
+  }
+
+  $('#select-all-builds').on('change', function() {
+    $('.build-selection').prop('checked', this.checked);
+    updateBuildSelectionControls();
+  });
+  $('.build-selection').on('change', updateBuildSelectionControls);
+  updateBuildSelectionControls();
+</script>
+<% end %>
+
+<%= erb :footer %>

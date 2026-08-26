@@ -40,6 +40,22 @@ module CheesyHours
         ref = params[:referrer].to_s.gsub("\\", "/")
         ref.start_with?("/") && !ref.start_with?("//") ? ref : fallback
       end
+
+      def parse_build_date(value)
+        Date.iso8601(value.to_s)
+      rescue Date::Error
+        halt(400, "Invalid date.")
+      end
+
+      def parse_build_hour(value)
+        Integer(value.to_s, 10)
+      rescue ArgumentError
+        halt(400, "Invalid build hour.")
+      end
+
+      def build_time_on(build_date, hour)
+        user_time_zone.local(build_date.year, build_date.month, build_date.day, hour).utc
+      end
     end
     # Enforce authentication for all non-public routes.
     before do
@@ -173,6 +189,193 @@ module CheesyHours
       redirect safe_referrer
     end
 
+    get "/build_schedule" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+
+      today = user_time_zone.now.to_date
+      @upcoming_builds = ScheduledBuildDay.where(Sequel[:date] >= today).order(:date).all
+      @edit_date = params[:date].to_s.empty? ? nil : parse_build_date(params[:date])
+      @edit_build = @edit_date.nil? ? nil : ScheduledBuildDay.where(:date => @edit_date).first
+      @edit_optional = @edit_build ? @edit_build.optional : ["1", "true"].include?(params[:optional].to_s)
+      @schedule_batches = DB[:build_schedule_batches].order(Sequel.desc(:created_at)).all
+      batch_ids = @schedule_batches.map { |batch| batch[:id] }
+      @schedule_batch_entries = if batch_ids.empty?
+                                  {}
+                                else
+                                  DB[:build_schedule_batch_entries].where(:batch_id => batch_ids).order(:date).all.group_by { |entry| entry[:batch_id] }
+                                end
+      erb :build_schedule
+    end
+
+    post "/build_schedule" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+
+      start_hour = parse_build_hour(params[:start_hour])
+      end_hour = parse_build_hour(params[:end_hour])
+      halt(400, "Build start must be a full hour from midnight through 10 PM.") unless (0..22).include?(start_hour)
+      halt(400, "Build end must be a full hour from 1 AM through 11 PM.") unless (1..23).include?(end_hour)
+      halt(400, "Build end must be after build start.") unless end_hour > start_hour
+
+      build_dates = if params[:schedule_mode] == "repeating"
+                      range_start = parse_build_date(params[:range_start])
+                      range_end = parse_build_date(params[:range_end])
+                      halt(400, "Schedule end must not precede its start.") if range_end < range_start
+                      halt(400, "Schedule range cannot exceed two years.") if (range_end - range_start).to_i > 730
+                      weekdays = Array(params[:weekdays]).map { |weekday| Integer(weekday, 10) rescue -1 }.uniq
+                      halt(400, "Select at least one weekday.") if weekdays.empty? || weekdays.any? { |weekday| !(0..6).include?(weekday) }
+                      (range_start..range_end).select { |date| weekdays.include?(date.wday) }
+                    else
+                      [parse_build_date(params[:date])]
+                    end
+      halt(400, "No build dates matched this schedule.") if build_dates.empty?
+
+      optional = ["1", "true"].include?(params[:optional].to_s)
+      replace_existing = params[:replace_existing] == "1"
+      created_count = 0
+      updated_count = 0
+      skipped_count = 0
+      batch_id = nil
+
+      DB.transaction do
+        if params[:schedule_mode] == "repeating"
+          batch_id = DB[:build_schedule_batches].insert(
+            :created_at => Time.now.utc,
+            :created_by_bcp_id => @user.bcp_id,
+            :created_by_name => @user.name_display
+          )
+        end
+
+        build_dates.each do |build_date|
+          starts_at = build_time_on(build_date, start_hour)
+          ends_at = build_time_on(build_date, end_hour)
+          scheduled_build = ScheduledBuildDay.where(:date => build_date).first
+
+          if scheduled_build && !replace_existing
+            skipped_count += 1
+            next
+          end
+
+          previous_values = if scheduled_build
+                              {
+                                :previously_existed => true,
+                                :previous_optional => scheduled_build.optional,
+                                :previous_starts_at => scheduled_build.starts_at,
+                                :previous_ends_at => scheduled_build.ends_at,
+                                :previous_schedule_batch_id => scheduled_build.schedule_batch_id
+                              }
+                            else
+                              {
+                                :previously_existed => false,
+                                :previous_optional => nil,
+                                :previous_starts_at => nil,
+                                :previous_ends_at => nil,
+                                :previous_schedule_batch_id => nil
+                              }
+                            end
+          previous_optional_build = !OptionalBuild.where(:date => build_date).empty?
+
+          if scheduled_build
+            scheduled_build.update(:optional => optional, :starts_at => starts_at, :ends_at => ends_at, :schedule_batch_id => batch_id)
+            updated_count += 1
+          else
+            ScheduledBuildDay.dataset.insert(
+              :date => build_date,
+              :optional => optional,
+              :starts_at => starts_at,
+              :ends_at => ends_at,
+              :schedule_batch_id => batch_id
+            )
+            created_count += 1
+          end
+
+          if batch_id
+            DB[:build_schedule_batch_entries].insert(
+              previous_values.merge(
+                :batch_id => batch_id,
+                :date => build_date,
+                :previous_optional_build => previous_optional_build,
+                :scheduled_optional => optional,
+                :scheduled_starts_at => starts_at,
+                :scheduled_ends_at => ends_at
+              )
+            )
+          end
+          OptionalBuild.where(:date => build_date).delete
+        end
+
+        if batch_id && created_count + updated_count == 0
+          DB[:build_schedule_batches].where(:id => batch_id).delete
+          batch_id = nil
+        end
+      end
+
+      redirect "/build_schedule?created=#{created_count}&updated=#{updated_count}&skipped=#{skipped_count}&batch_id=#{batch_id}"
+    end
+
+    post "/build_schedule/:date/delete" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+
+      scheduled_build = ScheduledBuildDay.where(:date => parse_build_date(params[:date])).first
+      halt(400, "Scheduled build not found.") if scheduled_build.nil?
+      scheduled_build.delete
+      redirect "/build_schedule?deleted=1"
+    end
+
+    post "/build_schedule/delete_selected" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+
+      build_dates = Array(params[:dates]).map { |date| parse_build_date(date) }.uniq
+      halt(400, "Select at least one build to remove.") if build_dates.empty?
+
+      deleted_count = ScheduledBuildDay.where(:date => build_dates).delete
+      redirect "/build_schedule?deleted=#{deleted_count}"
+    end
+
+    post "/build_schedule/batches/:id/undo" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+
+      batch_id = Integer(params[:id], 10) rescue nil
+      halt(400, "Invalid scheduling batch.") if batch_id.nil?
+      batch = DB[:build_schedule_batches].where(:id => batch_id).first
+      halt(400, "Scheduling batch not found.") if batch.nil?
+      halt(400, "Scheduling batch has already been undone.") unless batch[:undone_at].nil?
+
+      entries = DB[:build_schedule_batch_entries].where(:batch_id => batch_id).order(:date).all
+      removed_count = 0
+      restored_count = 0
+      skipped_count = 0
+
+      DB.transaction do
+        entries.each do |entry|
+          scheduled_build = ScheduledBuildDay.where(:date => entry[:date]).first
+          if scheduled_build.nil? || scheduled_build.schedule_batch_id != batch_id
+            skipped_count += 1
+            next
+          end
+
+          if entry[:previously_existed]
+            scheduled_build.update(
+              :optional => entry[:previous_optional],
+              :starts_at => entry[:previous_starts_at],
+              :ends_at => entry[:previous_ends_at],
+              :schedule_batch_id => entry[:previous_schedule_batch_id]
+            )
+            restored_count += 1
+          else
+            scheduled_build.delete
+            removed_count += 1
+          end
+
+          if entry[:previous_optional_build] && OptionalBuild.where(:date => entry[:date]).empty?
+            OptionalBuild.create(:date => entry[:date])
+          end
+        end
+        DB[:build_schedule_batches].where(:id => batch_id).update(:undone_at => Time.now.utc)
+      end
+
+      redirect "/build_schedule?batch_removed=#{removed_count}&batch_restored=#{restored_count}&batch_skipped=#{skipped_count}"
+    end
+
     get "/schedule_optional" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @referrer = request.referrer
@@ -187,7 +390,7 @@ module CheesyHours
       date = params[:date]
       scheduled_build_day = ScheduledBuildDay.where(:date => date).first
       if scheduled_build_day
-        scheduled_build_day.update(:optional => true)
+        scheduled_build_day.update(:optional => true, :schedule_batch_id => nil)
       else
         ScheduledBuildDay.create(:date => date, :optional => true)
       end
@@ -209,7 +412,7 @@ module CheesyHours
       OptionalBuild.where(:date => date).delete
       scheduled_build_day = ScheduledBuildDay.where(:date => date).first
       if scheduled_build_day
-        scheduled_build_day.update(:optional => false)
+        scheduled_build_day.update(:optional => false, :schedule_batch_id => nil)
       else
         ScheduledBuildDay.create(:date => date, :optional => false)
       end
@@ -250,7 +453,7 @@ module CheesyHours
 
       optional = params[:optional] == "1" || params[:optional] == "true"
       date = params[:date]
-      updated = ScheduledBuildDay.where(:date => date).update(:optional => optional)
+      updated = ScheduledBuildDay.where(:date => date).update(:optional => optional, :schedule_batch_id => nil)
       ScheduledBuildDay.create(:date => date, :optional => optional) if updated == 0
       OptionalBuild.where(:date => date).delete
 
