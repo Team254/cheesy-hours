@@ -2,7 +2,8 @@
 <% range_start = @semester_start.strftime("%Y-%m-%d") %>
 <% today = user_time_zone.now.to_date %>
 <% end_of_current_week = today + ((7 - today.wday) % 7) %>
-<% calendar_end = [@semester_end, end_of_current_week].min %>
+<% show_future_builds = ["1", "true", "on"].include?(params[:show_future_builds].to_s) %>
+<% calendar_end = show_future_builds ? @semester_end : [@semester_end, end_of_current_week].min %>
 <% range_end = calendar_end.strftime("%Y-%m-%d") %>
 <% semester_name = @semester.capitalize %>
 <% hide_optional = @hide_optional ? 1 : 0 %>
@@ -28,6 +29,10 @@
          <input type="checkbox" name="hide_optional" value="1" <%= "checked" if @hide_optional %> />
          Hide optional builds
       </label>
+      <label style="margin: 0;">
+         <input type="checkbox" name="show_future_builds" value="1" <%= "checked" if show_future_builds %> />
+         Show all future builds
+      </label>
       <button type="submit" class="btn btn-small">Apply</button>
       <small>Range: <%= semester_name %> <%= @semester_year %> (<%= @semester_start.strftime("%b %-d") %> - <%= calendar_end.strftime("%b %-d") %>)</small>
    </form>
@@ -38,10 +43,12 @@
       <thead>
          <tr>
             <th style="width:70px; height:34px; text-align: center; background-color: var(--missing-color); color: White">Absent</th>
+            <th style="width:70px; height:34px; text-align: center; background-color: var(--partial-color); color: White">Partial</th>
             <th style="width:70px; height:34px; text-align: center; background-color: var(--present-color); color: White">Present</th>
             <th style="width:70px; height:34px; text-align: center; background-color: var(--excused-color)">Optional</th>
-            <th class="stripe-bg" style="width:70px; height:34px; --color-a: var(--excused-color); --color-b: var(--partial-color); text-align: center; border-top-right-radius: 4px; border-bottom-right-radius: 4px;">Excused</th>
+            <th class="stripe-bg" style="width:70px; height:34px; --color-a: var(--excused-color); --color-b: var(--partial-color); text-align: center;">Excused</th>
             <th style="width:70px; height:34px; text-align: center; background-color: var(--scheduled-color); color: White">Scheduled</th>
+            <th class="stripe-bg" style="width:90px; height:34px; --color-a: var(--scheduled-color); --color-b: #657086; text-align: center; color: White; border-top-right-radius: 4px; border-bottom-right-radius: 4px;">Future excused</th>
          </tr>
       </thead>
    </table>
@@ -93,10 +100,30 @@
                    <% build_date = row[:build_date] %>
                    <% attended = row[:attended] %>
                    <% finalized = row[:finalized] %>
+                   <% finalized = 1 if build_date == today %>
                    <% required = row[:required] %>
                    <% excused = row[:excused] %>
                   <% if finalized == 0 %>
-                     <td style="background-color: var(--scheduled-color); min-width:50px; height:30px;"></td>
+                     <% if excused == 1 && required == 1 %>
+                     <td style="--color-a: var(--scheduled-color); --color-b: #657086; min-width:50px; height:30px;" class="stripe-bg" title="Excused from scheduled build">
+                     <% else %>
+                     <td style="background-color: var(--scheduled-color); min-width:50px; height:30px;">
+                     <% end %>
+                        <% if required == 1 && @user.has_permission?("HOURS_EDIT") %>
+                        <div class="btn-group visible-if-parent-hover">
+                           <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+                              <span class="caret"></span>
+                           </a>
+                           <ul class="dropdown-menu">
+                              <% if excused == 1 %>
+                              <li><a href="/students/<%=student_id%>/excusals/<%=build_date%>/delete">Unexcuse</a></li>
+                              <% else %>
+                              <li><a href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
+                              <% end %>
+                           </ul>
+                        </div>
+                        <% end %>
+                     </td>
                   <% elsif (attended == 1) %>
                      <td style="background-color: var(--present-color); min-width:50px; height:30px;">
                         <% if @user.has_permission?("HOURS_EDIT") || @user.has_permission?("HOURS_DELETE") %>
@@ -151,7 +178,7 @@
                         <% end %>
                      </td>
                   <% else %>
-                     <td style = "background-color: var(--missing-color); min-width:50px; height:30px;">
+                     <td style="background-color: <%= session_id ? "var(--partial-color)" : "var(--missing-color)" %>; min-width:50px; height:30px;">
                         <% if @user.has_permission?("HOURS_EDIT") || (session_id && @user.has_permission?("HOURS_DELETE")) %>
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
