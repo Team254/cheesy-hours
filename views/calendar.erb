@@ -1,11 +1,18 @@
 <%= erb :header %>
 <% range_start = @semester_start.strftime("%Y-%m-%d") %>
-<% range_end = @semester_end.strftime("%Y-%m-%d") %>
+<% today = user_time_zone.now.to_date %>
+<% end_of_current_week = today + ((7 - today.wday) % 7) %>
+<% show_future_builds = ["1", "true", "on"].include?(params[:show_future_builds].to_s) %>
+<% calendar_end = show_future_builds ? @semester_end : [@semester_end, end_of_current_week].min %>
+<% range_end = calendar_end.strftime("%Y-%m-%d") %>
 <% semester_name = @semester.capitalize %>
 <% hide_optional = @hide_optional ? 1 : 0 %>
 <% DB.fetch "SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));" do end %>
 <% student_info_rows = DB.fetch(CALENDAR_STUDENT_INFO_RANGE_QUERY, range_start, range_end, hide_optional).all %>
-<% studentsCnt = student_info_rows.size %>
+<% build_days = DB.fetch(BUILD_DAYS_RANGE_QUERY, range_start, range_end, hide_optional).all %>
+<% build_info_by_date_and_student = DB.fetch(CALENDAR_BUILD_INFO_RANGE_QUERY, range_start, range_end, hide_optional).all.each_with_object({}) do |row, rows| %>
+   <% rows[[row[:build_date], row[:student_id]]] = row %>
+<% end %>
 <div class="container container-wide">
    <div style="display: flex; align-items: flex-start; flex-direction: column; gap: 0.5rem">
    <h2 style="margin-bottom: 0;">Calendar</h2>
@@ -22,8 +29,12 @@
          <input type="checkbox" name="hide_optional" value="1" <%= "checked" if @hide_optional %> />
          Hide optional builds
       </label>
+      <label style="margin: 0;">
+         <input type="checkbox" name="show_future_builds" value="1" <%= "checked" if show_future_builds %> />
+         Show all future builds
+      </label>
       <button type="submit" class="btn btn-small">Apply</button>
-      <small>Range: <%= semester_name %> <%= @semester_year %> (<%= @semester_start.strftime("%b %-d") %> - <%= @semester_end.strftime("%b %-d") %>)</small>
+      <small>Range: <%= semester_name %> <%= @semester_year %> (<%= @semester_start.strftime("%b %-d") %> - <%= calendar_end.strftime("%b %-d") %>)</small>
    </form>
    <details class="" style="margin-top: -1.0rem; margin-bottom: 0.35rem;">
       <summary style="list-style: none">Legend</summary>
@@ -32,9 +43,12 @@
       <thead>
          <tr>
             <th style="width:70px; height:34px; text-align: center; background-color: var(--missing-color); color: White">Absent</th>
+            <th style="width:70px; height:34px; text-align: center; background-color: var(--partial-color); color: White">Partial</th>
             <th style="width:70px; height:34px; text-align: center; background-color: var(--present-color); color: White">Present</th>
             <th style="width:70px; height:34px; text-align: center; background-color: var(--excused-color)">Optional</th>
-            <th class="stripe-bg" style="width:70px; height:34px; --color-a: var(--excused-color); --color-b: var(--partial-color); text-align: center; border-top-right-radius: 4px; border-bottom-right-radius: 4px;">Excused</th>
+            <th class="stripe-bg" style="width:70px; height:34px; --color-a: var(--excused-color); --color-b: var(--partial-color); text-align: center;">Excused</th>
+            <th style="width:70px; height:34px; text-align: center; background-color: var(--scheduled-color); color: White">Scheduled</th>
+            <th class="stripe-bg" style="width:90px; height:34px; --color-a: var(--scheduled-color); --color-b: #657086; text-align: center; color: White; border-top-right-radius: 4px; border-bottom-right-radius: 4px;">Future excused</th>
          </tr>
       </thead>
    </table>
@@ -46,10 +60,15 @@
                <table style="table-layout: fixed; margin-bottom: 0px" class="table table-striped table-bordered table-condensed calendar-date-table" id="calendar-date-header">
                   <thead>
                      <tr>
-                        <% DB.fetch BUILD_DAYS_RANGE_QUERY, range_start, range_end, hide_optional do |build_date| %>
+                        <% build_days.each do |build_date| %>
                               <th style="width:60px; height:45px; padding-left: 0; padding-right: 0; text-align: center" title="<%= build_date[:build_date].strftime("%A, %B %-d, %Y") %>">
                                  <%= build_date[:build_date].strftime("%m/%d") %>
+                                 <% if build_date[:starts_at] && build_date[:ends_at] %>
+                                    <br><small style="font-size: 0.65em; line-height: 1; color: var(--scheduled-color);"><%= build_date[:starts_at].in_time_zone(USER_TIME_ZONE).strftime("%-l %p") %>–<%= build_date[:ends_at].in_time_zone(USER_TIME_ZONE).strftime("%-l %p") %></small>
+                                 <% end %>
                                  <% if @user.has_permission?("HOURS_EDIT") %>
+                                    <br/>
+                                    <a href="/build_schedule?date=<%= build_date[:build_date] %>&optional=<%= build_date[:optional] %>" class="visible-if-parent-hover"><small style="font-size: 0.65em; padding: 0px 8px;">edit build</small></a>
                                     <% if build_date[:optional] == 1 %>
                                        <br/>
                                        <a href="/delete_optional/<%=build_date[:build_date]%>"><small style="font-size: 0.65em; padding: 0px 8px;">mark required</small></a>
@@ -71,19 +90,41 @@
          </div>
          <div id="calendar-grid-scroll" style="padding-bottom: 64px;">
             <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed column-based" id="color-grid">
-               <% rowNum = 1 %>
-               <% if studentsCnt > 0 %>
-               <% DB.fetch CALENDAR_BUILD_INFO_RANGE_QUERY, range_start, range_end, hide_optional do |row| %>
+               <% build_days.each do |build_day| %>
+                  <tr>
+                  <% student_info_rows.each do |student_info| %>
+                   <% row = build_info_by_date_and_student[[build_day[:build_date], student_info[:student_id]]] %>
+                   <% next if row.nil? %>
                    <% student_id = row[:student_id] %>
                    <% session_id = row[:session_id] rescue nil %>
                    <% build_date = row[:build_date] %>
                    <% attended = row[:attended] %>
+                   <% finalized = row[:finalized] %>
+                   <% finalized = 1 if build_date == today %>
                    <% required = row[:required] %>
                    <% excused = row[:excused] %>
-                  <% if (rowNum.modulo(studentsCnt) == 1) %>
-                     <tr style="width: 61px">
-                  <% end %>
-                  <% if (attended == 1) %>
+                  <% if finalized == 0 %>
+                     <% if excused == 1 && required == 1 %>
+                     <td style="--color-a: var(--scheduled-color); --color-b: #657086; min-width:50px; height:30px;" class="stripe-bg" title="Excused from scheduled build">
+                     <% else %>
+                     <td style="background-color: var(--scheduled-color); min-width:50px; height:30px;">
+                     <% end %>
+                        <% if required == 1 && @user.has_permission?("HOURS_EDIT") %>
+                        <div class="btn-group visible-if-parent-hover">
+                           <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
+                              <span class="caret"></span>
+                           </a>
+                           <ul class="dropdown-menu">
+                              <% if excused == 1 %>
+                              <li><a href="/students/<%=student_id%>/excusals/<%=build_date%>/delete">Unexcuse</a></li>
+                              <% else %>
+                              <li><a href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
+                              <% end %>
+                           </ul>
+                        </div>
+                        <% end %>
+                     </td>
+                  <% elsif (attended == 1) %>
                      <td style="background-color: var(--present-color); min-width:50px; height:30px;">
                         <% if @user.has_permission?("HOURS_EDIT") || @user.has_permission?("HOURS_DELETE") %>
                         <div class="btn-group visible-if-parent-hover">
@@ -116,37 +157,54 @@
                      </td>
                   <% elsif (!(required == 1)) %>
                      <td style="background-color: var(--excused-color); min-width:50px; height:30px;">
-                        <% if @user.has_permission?("HOURS_EDIT") %>
+                        <% if @user.has_permission?("HOURS_EDIT") || (session_id && @user.has_permission?("HOURS_DELETE")) %>
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
                               <span class="caret"></span>
                            </a>
                            <ul class="dropdown-menu">
+                              <% if session_id %>
+                                 <% if @user.has_permission?("HOURS_EDIT") %>
+                              <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
+                                 <% end %>
+                                 <% if @user.has_permission?("HOURS_DELETE") %>
+                              <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
+                                 <% end %>
+                              <% else %>
                               <li><a href="/students/<%=student_id%>/new_lab_session?date=<%=build_date%>">Add Lab Session</a></li>
+                              <% end %>
                            </ul>
                         </div>
                         <% end %>
                      </td>
                   <% else %>
-                     <td style = "background-color: var(--missing-color); min-width:50px; height:30px;">
-                        <% if @user.has_permission?("HOURS_EDIT") %>
+                     <td style="background-color: <%= session_id ? "var(--partial-color)" : "var(--missing-color)" %>; min-width:50px; height:30px;">
+                        <% if @user.has_permission?("HOURS_EDIT") || (session_id && @user.has_permission?("HOURS_DELETE")) %>
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn dropdown-toggle" data-toggle="dropdown" href="#">
                               <span class="caret"></span>
                            </a>
                            <ul class="dropdown-menu">
+                              <% if session_id %>
+                                 <% if @user.has_permission?("HOURS_EDIT") %>
+                              <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
+                                 <% end %>
+                              <% else %>
                               <li><a href="/students/<%=student_id%>/new_lab_session?date=<%=build_date%>">Add Lab Session</a></li>
+                              <% end %>
+                              <% if @user.has_permission?("HOURS_EDIT") %>
                               <li><a href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
+                              <% end %>
+                              <% if session_id && @user.has_permission?("HOURS_DELETE") %>
+                              <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
+                              <% end %>
                            </ul>
                         </div>
                         <% end %>
                      </td>
                   <% end %>
-                  <% if (rowNum.modulo(studentsCnt) == 0) %>
-                     </tr>
                   <% end %>
-                  <% rowNum += 1 %>
-               <% end %>
+                  </tr>
                <% end %>
             </table>
          </div>
