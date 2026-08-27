@@ -171,6 +171,99 @@ module CheesyHours
       erb :calendar
     end
 
+    get "/at_risk_students" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+
+      today = user_time_zone.now.to_date
+      requested_semester = params[:semester].to_s.downcase
+      @semester = %w[fall spring summer].include?(requested_semester) ? requested_semester : case today.month
+                                                                                            when 1..5 then "spring"
+                                                                                            when 6..7 then "summer"
+                                                                                            else "fall"
+                                                                                            end
+      requested_year = params[:year].to_i
+      @semester_year = requested_year > 0 ? requested_year : today.year
+
+      case @semester
+      when "fall"
+        @semester_start = Date.new(@semester_year, 8, 1)
+        @semester_end = Date.new(@semester_year, 12, 31)
+      when "spring"
+        @semester_start = Date.new(@semester_year, 1, 1)
+        @semester_end = Date.new(@semester_year, 5, 31)
+      else
+        @semester_start = Date.new(@semester_year, 6, 1)
+        @semester_end = Date.new(@semester_year, 7, 31)
+      end
+
+      @total_absence_limit = 5
+      @consecutive_absence_limit = 3
+      students_by_id = Student.all.each_with_object({}) { |student, students| students[student.id] = student }
+      DB.fetch "SET sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));" do end
+      attendance_rows = DB.fetch(
+        CALENDAR_BUILD_INFO_RANGE_QUERY,
+        @semester_start.strftime("%Y-%m-%d"),
+        @semester_end.strftime("%Y-%m-%d"),
+        1
+      ).all
+
+      @at_risk_students = attendance_rows.group_by { |row| row[:student_id] }.map do |student_id, rows|
+        student = students_by_id[student_id]
+        next if student.nil?
+
+        absence_dates = []
+        longest_streak = 0
+        longest_streak_start = nil
+        longest_streak_end = nil
+        current_streak = 0
+        current_streak_start = nil
+
+        rows.sort_by { |row| row[:build_date] }.each do |row|
+          next unless row[:build_date] <= today && row[:finalized] == 1 && row[:required] == 1
+
+          if row[:attended] == 0 && row[:excused] == 0
+            absence_dates << row[:build_date]
+            current_streak_start ||= row[:build_date]
+            current_streak += 1
+            if current_streak > longest_streak
+              longest_streak = current_streak
+              longest_streak_start = current_streak_start
+              longest_streak_end = row[:build_date]
+            end
+          else
+            current_streak = 0
+            current_streak_start = nil
+          end
+        end
+
+        total_absences = absence_dates.length
+        next unless total_absences >= 3 || longest_streak >= 3
+
+        status = if total_absences > @total_absence_limit || longest_streak > @consecutive_absence_limit
+                   :over_limit
+                 elsif total_absences == @total_absence_limit || longest_streak == @consecutive_absence_limit
+                   :at_limit
+                 else
+                   :at_risk
+                 end
+        {
+          :student => student,
+          :total_absences => total_absences,
+          :longest_streak => longest_streak,
+          :longest_streak_start => longest_streak_start,
+          :longest_streak_end => longest_streak_end,
+          :most_recent_absence => absence_dates.last,
+          :status => status
+        }
+      end.compact
+      status_order = { :over_limit => 0, :at_limit => 1, :at_risk => 2 }
+      @at_risk_students.sort_by! do |row|
+        [status_order[row[:status]], -row[:total_absences], -row[:longest_streak], row[:student].last_name, row[:student].first_name]
+      end
+
+      erb :at_risk_students
+    end
+
     get "/optionalize_past_offdays" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @referrer = request.referrer
