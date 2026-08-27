@@ -310,7 +310,9 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
 }
 
 #calendar-date-header .calendar-date-actions {
-    display: none;
+    display: inline-block;
+    opacity: 0;
+    pointer-events: none;
     position: absolute;
     top: 4px;
     left: 4px;
@@ -324,8 +326,17 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
 }
 
 #calendar-date-header .calendar-date-with-actions:hover .calendar-date-actions,
+#calendar-date-header .calendar-date-with-actions:focus-within .calendar-date-actions,
 #calendar-date-header .calendar-date-actions.open {
-    display: inline-block;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+@media (hover: none), (pointer: coarse) {
+    #calendar-date-header .calendar-date-actions {
+        opacity: 1;
+        pointer-events: auto;
+    }
 }
 
 .student-table thead th {
