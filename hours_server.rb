@@ -3,6 +3,7 @@
 #
 # The main class of the hours web server.
 
+require "active_support"
 require "active_support/time"
 require "cgi"
 require "cheesy-common"
@@ -12,6 +13,7 @@ require "pathological"
 require "securerandom"
 require "sinatra/base"
 require "json"
+require "ostruct"
 
 require "models"
 require "constants"
