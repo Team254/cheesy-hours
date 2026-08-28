@@ -1,0 +1,84 @@
+name: cheesy-hours-production-parity
+
+services:
+  db:
+    image: mysql:8.4.11@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+    platform: linux/amd64
+    environment:
+      MYSQL_DATABASE: cheesy_frc_hours
+      MYSQL_USER: cheesy_hours
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+      TZ: UTC
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping --host=127.0.0.1 --user=root --password=$$(cat /run/secrets/db_root_password) --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    secrets:
+      - db_password
+      - db_root_password
+    volumes:
+      - mysql84_data:/var/lib/mysql
+
+  app:
+    platform: linux/amd64
+    build:
+      context: .
+    environment:
+      DISABLE_AUTH: "1"
+      TEAM254_ENV: dev
+      TZ: UTC
+    entrypoint:
+      - ruby
+      - -rjson
+      - -e
+      - |
+        password = File.read("/run/secrets/db_password").strip
+        config = {
+          "global" => {
+            "automatic_signout_offset_hours" => -2,
+            "db_database" => "cheesy_frc_hours",
+            "db_host" => "db",
+            "db_user" => "cheesy_hours",
+            "port" => 9006,
+            "program" => "FRC"
+          },
+          "dev" => {
+            "db_password" => password,
+            "members_url" => "http://127.0.0.1",
+            "signin_ip_whitelist" => []
+          }
+        }
+        File.write("/app/config.json", JSON.generate(config))
+        exec(*ARGV)
+      - --
+    command:
+      - bundle
+      - exec
+      - ruby
+      - hours_server_control.rb
+      - run
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "ruby", "-rnet/http", "-e", "exit(Net::HTTP.get_response(URI('http://127.0.0.1:9006/')).is_a?(Net::HTTPSuccess) ? 0 : 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    ports:
+      - 127.0.0.1:9006:9006
+    secrets:
+      - db_password
+
+secrets:
+  db_password:
+    file: ${CHEESY_HOURS_DOCKER_PRIVATE_DIR:-/Volumes/T7ShieldAPFS/CheesyHoursDocker/private}/db_password
+  db_root_password:
+    file: ${CHEESY_HOURS_DOCKER_PRIVATE_DIR:-/Volumes/T7ShieldAPFS/CheesyHoursDocker/private}/db_root_password
+
+volumes:
+  mysql84_data:
