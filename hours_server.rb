@@ -738,28 +738,6 @@ module CheesyHours
       redirect "/mentors"
     end
 
-    get "/mentor_checkins" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      @mentor_checkins = MentorCheckin.order_by(:id).reverse
-      erb :mentor_checkins
-    end
-
-    get "/mentor_checkins/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      @mentor_checkin = MentorCheckin[params[:id]]
-      halt(400, "Invalid mentor_checkin.") if @mentor_checkin.nil?
-      @referrer = request.referrer
-      erb :delete_mentor_checkin
-    end
-
-    post "/mentor_checkins/:id/delete" do
-      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
-      mentor_checkin = MentorCheckin[params[:id]]
-      halt(400, "Invalid mentor_checkin.") if mentor_checkin.nil?
-      mentor_checkin.delete
-      redirect safe_referrer("/mentor_checkins")
-    end
-
     get "/suspect_lab_sessions" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       erb :suspect_lab_sessions
@@ -812,10 +790,6 @@ module CheesyHours
           lab_session.update(:time_out => Time.now.utc, :mentor => mentor)
         end
         halt(200, sms_response(["All students signed out."]))
-      elsif params[:Body].strip.downcase == "here"
-        # Register a mentor check-in.
-        MentorCheckin.create(mentor: mentor, time_in: Time.now.utc)
-        halt(200, sms_response(["Checked in #{mentor.first_name} #{mentor.last_name}."]))
       end
 
       # Next, check for multiple IDs in the message.
