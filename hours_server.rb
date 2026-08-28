@@ -6,7 +6,9 @@
 require "active_support/time"
 require "cgi"
 require "cheesy-common"
+require "digest"
 require "pathological"
+require "securerandom"
 require "sinatra/base"
 require "json"
 
@@ -16,6 +18,16 @@ require "queries"
 
 module CheesyHours
   class Server < Sinatra::Base
+    RESET_ACTIVITY_TABLES = {
+      :lab_sessions => ["Lab sessions", :time_in, :datetime],
+      :mentor_checkins => ["Mentor check-ins", :time_in, :datetime],
+      :excused_sessions => ["Excusals", :date, :date],
+      :optional_builds => ["Optional builds", :date, :date],
+      :scheduled_build_days => ["Scheduled builds", :date, :date],
+      :build_schedule_batch_entries => ["Schedule batch entries", :date, :date]
+    }.freeze
+    RESET_AUTO_INCREMENT_TABLES = (RESET_ACTIVITY_TABLES.keys + [:build_schedule_batches]).freeze
+
     DevUser = Struct.new(:name_display, :bcp_id) do
       def has_permission?(_permission)
         true
@@ -55,6 +67,91 @@ module CheesyHours
 
       def build_time_on(build_date, hour)
         user_time_zone.local(build_date.year, build_date.month, build_date.day, hour).utc
+      end
+
+      def parse_reset_cutoff(value)
+        Date.iso8601(value.to_s)
+      rescue Date::Error
+        halt(400, "Invalid reset cutoff date.")
+      end
+
+      def reset_cutoff_time(cutoff_date)
+        user_time_zone.local(cutoff_date.year, cutoff_date.month, cutoff_date.day).utc
+      end
+
+      def reset_activity_datasets(cutoff_date)
+        cutoff_time = reset_cutoff_time(cutoff_date)
+        RESET_ACTIVITY_TABLES.each_with_object({}) do |(table, (_label, column, type)), datasets|
+          cutoff = type == :datetime ? cutoff_time : cutoff_date
+          datasets[table] = DB[table].where(Sequel[column] < cutoff)
+        end
+      end
+
+      def reset_activity_preview(cutoff_date)
+        cutoff_time = reset_cutoff_time(cutoff_date)
+        datasets = reset_activity_datasets(cutoff_date)
+        candidate_batch_ids = datasets[:build_schedule_batch_entries]
+                              .exclude(:batch_id => nil)
+                              .select_map(:batch_id)
+                              .uniq
+        remaining_batch_ids = DB[:build_schedule_batch_entries]
+                              .where(Sequel[:date] >= cutoff_date)
+                              .exclude(:batch_id => nil)
+                              .select_map(:batch_id)
+                              .uniq
+        batch_ids_to_delete = candidate_batch_ids - remaining_batch_ids
+        batch_delete_count = batch_ids_to_delete.empty? ? 0 : DB[:build_schedule_batches].where(:id => batch_ids_to_delete).count
+        rows = RESET_ACTIVITY_TABLES.map do |table, (label, _column, _type)|
+          delete_count = datasets[table].count
+          remaining_count = DB[table].count - delete_count
+          {
+            :table => table,
+            :label => label,
+            :delete_count => delete_count,
+            :remaining_count => remaining_count,
+            :reset_ids => remaining_count == 0
+          }
+        end
+        remaining_batch_count = DB[:build_schedule_batches].count - batch_delete_count
+        rows << {
+          :table => :build_schedule_batches,
+          :label => "Schedule batches",
+          :delete_count => batch_delete_count,
+          :remaining_count => remaining_batch_count,
+          :reset_ids => remaining_batch_count == 0
+        }
+        project_seconds = DB.fetch(
+          "SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND, time_in, time_out)), 0) AS seconds FROM lab_sessions WHERE time_in < ? AND time_out IS NOT NULL",
+          cutoff_time
+        ).get(:seconds).to_f
+        crossing_sessions = DB[:lab_sessions]
+                            .where(Sequel[:time_in] < cutoff_time)
+                            .where(Sequel.|({ :time_out => nil }, Sequel[:time_out] > cutoff_time))
+                            .count
+        {
+          :cutoff_date => cutoff_date,
+          :cutoff_time => cutoff_time,
+          :datasets => datasets,
+          :batch_ids_to_delete => batch_ids_to_delete,
+          :rows => rows,
+          :project_hours => project_seconds / 3600,
+          :crossing_sessions => crossing_sessions
+        }
+      end
+
+      def reset_preview_signature(preview)
+        {
+          "cutoff_date" => preview[:cutoff_date].iso8601,
+          "delete_counts" => preview[:rows].each_with_object({}) do |row, counts|
+            counts[row[:table].to_s] = row[:delete_count]
+          end,
+          "delete_fingerprints" => preview[:datasets].each_with_object({}) do |(table, dataset), fingerprints|
+            fingerprints[table.to_s] = Digest::SHA256.hexdigest(dataset.select_map(:id).sort.join(","))
+          end.merge(
+            "build_schedule_batches" => Digest::SHA256.hexdigest(preview[:batch_ids_to_delete].sort.join(","))
+          ),
+          "crossing_sessions" => preview[:crossing_sessions]
+        }
       end
     end
     # Enforce authentication for all non-public routes.
@@ -873,12 +970,67 @@ module CheesyHours
     end
 
     get "/reset_hours" do
-      unless @user.has_permission?("DATABASE_ADMIN")
-        halt(400, "Need to be an administrator.")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+
+      cutoff_value = params[:cutoff_date].to_s
+      @cutoff_date = cutoff_value.empty? ? user_time_zone.now.to_date : parse_reset_cutoff(cutoff_value)
+      @preview = reset_activity_preview(@cutoff_date)
+      @reset_result = session.delete(:reset_hours_result)
+      @reset_token = SecureRandom.hex(32)
+      session[:reset_hours_preview] = reset_preview_signature(@preview).merge("token" => @reset_token)
+      erb :reset_hours
+    end
+
+    post "/reset_hours" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+      halt(400, "Type \"I want to reset hours.\" to confirm.") unless params[:confirmation] == "I want to reset hours."
+
+      cutoff_date = parse_reset_cutoff(params[:cutoff_date])
+      expected_preview = session[:reset_hours_preview]
+      expected_token = expected_preview.is_a?(Hash) ? expected_preview["token"].to_s : ""
+      reset_token = params[:reset_token].to_s
+      valid_token = !reset_token.empty? &&
+                    reset_token.bytesize == expected_token.bytesize &&
+                    Rack::Utils.secure_compare(reset_token, expected_token)
+      halt(403, "Reset preview expired. Preview the reset again before continuing.") unless valid_token
+
+      expected_signature = expected_preview.reject { |key, _value| key == "token" }
+      deleted_counts = {}
+      reset_preview = nil
+      DB.transaction do
+        reset_preview = reset_activity_preview(cutoff_date)
+        unless expected_signature == reset_preview_signature(reset_preview)
+          halt(409, "The database changed after this preview. Preview the reset again before continuing.")
+        end
+        unless reset_preview[:crossing_sessions] == 0
+          halt(409, "Resolve open or cross-cutoff lab sessions before resetting hours.")
+        end
+
+        reset_preview[:datasets].each do |table, dataset|
+          previewed_ids = dataset.select_map(:id)
+          if previewed_ids.empty?
+            deleted_counts[table.to_s] = 0
+          else
+            deleted_counts[table.to_s] = DB[table].where(:id => previewed_ids).delete
+          end
+        end
+        batch_ids_to_delete = reset_preview[:batch_ids_to_delete]
+        deleted_counts["build_schedule_batches"] = if batch_ids_to_delete.empty?
+                                                       0
+                                                     else
+                                                       DB[:build_schedule_batches].where(:id => batch_ids_to_delete).delete
+                                                     end
       end
 
-      DB[:lab_sessions].where(Sequel[:time_out] < DateTime.new(2018, 1, 6)).delete
-      "Reset Hours"
+      reset_tables = RESET_AUTO_INCREMENT_TABLES.select { |table| DB[table].count == 0 }
+      reset_tables.each { |table| DB.run("ALTER TABLE `#{table}` AUTO_INCREMENT = 1") }
+      session.delete(:reset_hours_preview)
+      session[:reset_hours_result] = {
+        "cutoff_date" => cutoff_date.iso8601,
+        "deleted_counts" => deleted_counts,
+        "reset_tables" => reset_tables.map(&:to_s)
+      }
+      redirect "/reset_hours?cutoff_date=#{cutoff_date.iso8601}"
     end
 
     get "/signout_automatic" do

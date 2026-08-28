@@ -1,0 +1,89 @@
+<%= erb :header %>
+
+<div class="container">
+  <h2>Danger Zone: Reset Attendance Data</h2>
+
+  <div class="alert alert-error">
+    <strong>This permanently deletes database records.</strong>
+    This page is intentionally not linked from the site. Verify a current database backup before continuing.
+  </div>
+
+  <% if @reset_result %>
+    <% deleted_total = @reset_result["deleted_counts"].values.map(&:to_i).inject(0, :+) %>
+    <div class="alert alert-success">
+      Deleted <%= deleted_total %> records before <%= Rack::Utils.escape_html(@reset_result["cutoff_date"]) %>.
+      <% unless @reset_result["reset_tables"].empty? %>
+        Reset IDs for: <%= Rack::Utils.escape_html(@reset_result["reset_tables"].join(", ")) %>.
+      <% end %>
+    </div>
+  <% end %>
+
+  <form action="/reset_hours" method="GET" class="form-inline">
+    <label for="cutoff-date"><strong>Delete records before</strong></label>
+    <input id="cutoff-date" type="date" name="cutoff_date" value="<%= @cutoff_date.iso8601 %>" required />
+    <button type="submit" class="btn">Preview Reset</button>
+  </form>
+
+  <p>
+    The cutoff is midnight Pacific time at the start of <strong><%= @cutoff_date.strftime("%B %-d, %Y") %></strong>.
+    Records on or after that date are preserved.
+  </p>
+  <p>
+    Students, mentors, tags, and schema information are always preserved. IDs restart at 1 only for activity tables left completely empty.
+  </p>
+
+  <h3>Preview</h3>
+  <table class="table table-striped table-bordered table-condensed" style="max-width: 800px;">
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Delete</th>
+        <th>Preserve</th>
+        <th>ID sequence</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @preview[:rows].each do |row| %>
+        <tr>
+          <td><%= row[:label] %></td>
+          <td><%= row[:delete_count] %></td>
+          <td><%= row[:remaining_count] %></td>
+          <td><%= row[:reset_ids] ? "Restart at 1" : "Unchanged" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <p>This reset removes approximately <strong><%= @preview[:project_hours].round(1) %> project hours</strong>.</p>
+
+  <% if @preview[:crossing_sessions] > 0 %>
+    <div class="alert alert-error">
+      Reset blocked: <%= @preview[:crossing_sessions] %> lab session<%= "s" unless @preview[:crossing_sessions] == 1 %>
+      started before the cutoff and is still open or ends after it. Resolve those sessions, then preview again.
+    </div>
+  <% else %>
+    <hr />
+    <h3>Confirm Permanent Reset</h3>
+    <form action="/reset_hours" method="POST">
+      <input type="hidden" name="cutoff_date" value="<%= @cutoff_date.iso8601 %>" />
+      <input type="hidden" name="reset_token" value="<%= @reset_token %>" />
+      <label for="reset-confirmation">Type <strong>I want to reset hours.</strong> to continue</label>
+      <input
+        id="reset-confirmation"
+        type="text"
+        name="confirmation"
+        autocomplete="off"
+        required
+      />
+      <div>
+        <button
+          type="submit"
+          class="btn btn-danger"
+          onclick="return confirm('Permanently delete all previewed attendance data before the cutoff?');"
+        >Permanently Reset Hours</button>
+      </div>
+    </form>
+  <% end %>
+</div>
+
+<%= erb :footer %>
