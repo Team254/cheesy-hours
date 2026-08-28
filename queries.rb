@@ -282,6 +282,12 @@ SELECT
     END AS required,
     MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused,
     MAX(cheesy_frc_hours.lab_sessions.id) AS session_id,
+    MAX(CASE
+        WHEN NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in)
+            AND ISNULL(cheesy_frc_hours.lab_sessions.time_out)
+        THEN 1
+        ELSE 0
+    END) AS signed_in,
     cheesy_frc_hours.scheduled_build_days.starts_at,
     cheesy_frc_hours.scheduled_build_days.ends_at
     FROM

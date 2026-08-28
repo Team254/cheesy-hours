@@ -120,14 +120,16 @@
                    <% build_date = row[:build_date] %>
                    <% attended = row[:attended] %>
                    <% finalized = row[:finalized] %>
-                   <% finalized = 1 if build_date == today %>
                    <% required = row[:required] %>
                    <% excused = row[:excused] %>
+                   <% signed_in = row[:signed_in] %>
                   <% if finalized == 0 %>
-                     <% if excused == 1 && required == 1 %>
+                     <% if signed_in == 1 %>
+                     <td style="background-color: var(--partial-color); min-width:50px; height:30px;" title="Currently signed in; attendance pending">
+                     <% elsif excused == 1 && required == 1 %>
                      <td style="--color-a: var(--scheduled-color); --color-b: #657086; min-width:50px; height:30px;" class="stripe-bg" title="Excused from scheduled build">
                      <% else %>
-                     <td style="background-color: var(--scheduled-color); min-width:50px; height:30px;">
+                     <td style="background-color: var(--scheduled-color); min-width:50px; height:30px;" title="Scheduled; attendance pending">
                      <% end %>
                         <% if required == 1 && can_edit_hours %>
                         <div class="btn-group visible-if-parent-hover">
