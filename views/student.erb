@@ -43,6 +43,29 @@
         </tr>
       <% end %>
     </table>
+    <h3>Event Attendance</h3>
+    <table class="table table-striped table-bordered table-condensed">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Event</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @attendance_events.each do |event| %>
+          <% present = @event_check_ins_by_event_id.key?(event.id) %>
+          <tr class="<%= "error" unless present %>">
+            <td><%= event.date.strftime("%m/%d/%Y") %></td>
+            <td><%= Rack::Utils.escape_html(event.title) %></td>
+            <td><%= present ? "Present" : "Absent" %></td>
+          </tr>
+        <% end %>
+        <% if @attendance_events.empty? %>
+          <tr><td colspan="3">No events have been scheduled.</td></tr>
+        <% end %>
+      </tbody>
+    </table>
     <% if @user.has_permission?("HOURS_EDIT") %>
       <div style="margin-top: 6.5rem"></div>
       <div class="pull-right">

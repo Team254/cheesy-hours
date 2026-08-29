@@ -1,6 +1,22 @@
 <%= erb :header %>
 
 <div class="container">
+  <% if @user && !@open_events.empty? %>
+    <div class="row">
+      <div class="span6">
+        <h2>Event check-in</h2>
+      </div>
+    </div>
+    <% @open_events.each do |event| %>
+      <h3><%= Rack::Utils.escape_html(event.title) %></h3>
+      <form action="/event_check_in" method="POST" style="margin-bottom: 2rem;">
+        <input type="hidden" name="event_id" value="<%= event.id %>">
+        <p><input class="form-control input-lg text-input" name="code" inputmode="numeric" placeholder="Verification Code" autofocus></p>
+        <button type="submit" class="btn btn-success btn-lg">Check in</button>
+      </form>
+    <% end %>
+    <hr>
+  <% end %>
   <% if @user %>
     <% if @user.has_permission?("HOURS_SIGN_IN") %>
       <div class="row">
@@ -9,7 +25,7 @@
         </div>
       </div>
       <form action="/signin" method="POST">
-        <p><input class="form-control input-lg text-input" name="student_id" placeholder="Student ID" autofocus></p>
+        <p><input class="form-control input-lg text-input" name="student_id" placeholder="Student ID" <%= "autofocus" if @open_events.empty? %>></p>
         <button type="submit" class="btn btn-success btn-lg" id="scanSubmit">Sign in</button>
       </form>
     <% end %>

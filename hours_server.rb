@@ -6,6 +6,7 @@
 require "active_support/time"
 require "cgi"
 require "cheesy-common"
+require "csv"
 require "digest"
 require "pathological"
 require "securerandom"
@@ -23,7 +24,8 @@ module CheesyHours
       :excused_sessions => ["Excusals", :date, :date],
       :optional_builds => ["Optional builds", :date, :date],
       :scheduled_build_days => ["Scheduled builds", :date, :date],
-      :build_schedule_batch_entries => ["Schedule batch entries", :date, :date]
+      :build_schedule_batch_entries => ["Schedule batch entries", :date, :date],
+      :events => ["Events", :date, :date]
     }.freeze
     DevUser = Struct.new(:name_display, :bcp_id) do
       def has_permission?(_permission)
@@ -219,6 +221,19 @@ module CheesyHours
           "database_fingerprint" => student_roster_fingerprint(preview[:database_students])
         }
       end
+
+      def require_event_admin
+        halt(403, "Insufficient permissions.") unless @user && @user.has_permission?("ATTENDANCE_ADMIN")
+      end
+
+      def event_from_params
+        event_id = Integer(params[:id].to_s, 10)
+        event = Event[event_id]
+        halt(404, "Event not found.") if event.nil?
+        event
+      rescue ArgumentError
+        halt(400, "Invalid event.")
+      end
     end
     # Enforce authentication for all non-public routes.
     before do
@@ -232,7 +247,7 @@ module CheesyHours
         @user = CheesyCommon::User.new(
           "name_display" => "Dev User",
           "bcp_id" => dev_bcp_id,
-          "permissions" => ["HOURS_SIGN_IN", "HOURS_VIEW", "HOURS_EDIT", "HOURS_DELETE", "HOURS_VIEW_REPORT", "DATABASE_ADMIN"]
+          "permissions" => ["HOURS_SIGN_IN", "HOURS_VIEW", "HOURS_EDIT", "HOURS_DELETE", "HOURS_VIEW_REPORT", "ATTENDANCE_ADMIN", "DATABASE_ADMIN"]
         )
         session[:user] = @user
       else
@@ -255,7 +270,116 @@ module CheesyHours
 
     get "/" do
       @signed_in_sessions = LabSession.where(:time_out => nil)
+      @open_events = Event.open_on(user_time_zone.now.to_date).eager(:event_check_ins).all
       erb :index
+    end
+
+    post "/event_check_in" do
+      event_id = Integer(params[:event_id].to_s, 10)
+      event = Event[event_id]
+      halt(400, "Invalid event.") if event.nil? || !event.open_on?(user_time_zone.now.to_date)
+
+      submitted_code = Integer(params[:code].to_s, 10)
+      halt(400, "Incorrect event code.") unless submitted_code == event.check_in_code
+
+      student = Student[@user.bcp_id]
+      halt(400, "Your Members account is not on the Hours roster.") if student.nil?
+      halt(409, "Student is already checked in.") unless EventCheckIn.where(:event_id => event.id, :student_id => student.id).empty?
+
+      EventCheckIn.create(:event_id => event.id, :student_id => student.id, :checked_in_at => Time.now.utc)
+      redirect "/"
+    rescue ArgumentError
+      halt(400, "Event ID and code must be numbers.")
+    rescue Sequel::UniqueConstraintViolation
+      halt(409, "Student is already checked in.")
+    end
+
+    get "/events" do
+      require_event_admin
+      @events = Event.eager(:event_check_ins).order(Sequel.desc(:date), Sequel.desc(:id)).all
+      @student_count = Student.count
+      @attendance_students = Student.order(:last_name, :first_name).all
+      reportable_event_ids = @events.select { |event| event.date <= user_time_zone.now.to_date }.map(&:id)
+      @attended_event_counts_by_student_id = if reportable_event_ids.empty?
+                                               Hash.new(0)
+                                             else
+                                               EventCheckIn.where(:event_id => reportable_event_ids)
+                                                           .all
+                                                           .each_with_object(Hash.new(0)) do |check_in, counts|
+                                                 counts[check_in.student_id] += 1
+                                               end
+                                             end
+      @reportable_event_count = reportable_event_ids.length
+      erb :events
+    end
+
+    post "/events" do
+      require_event_admin
+      title = params[:title].to_s.strip
+      halt(400, "Event title is required.") if title.empty?
+      halt(400, "Event title is too long.") if title.length > 255
+      event_date = parse_build_date(params[:date])
+      event = Event.create(
+        :title => title,
+        :date => event_date,
+        :check_in_code => SecureRandom.random_number(900) + 100,
+        :created_by_bcp_id => @user.bcp_id,
+        :created_by_name => @user.name_display
+      )
+      redirect "/events/#{event.id}"
+    end
+
+    get "/events/report.csv" do
+      require_event_admin
+      content_type "text/csv"
+      rows = [["Last Name", "First Name", "Student ID", "Events Attended", "Events Missed"]]
+      today = user_time_zone.now.to_date
+      event_ids = Event.where { date <= today }.select_map(:id)
+      students = Student.order(:last_name, :first_name).all
+      attended_counts = if event_ids.empty?
+                          Hash.new(0)
+                        else
+                          EventCheckIn.where(:event_id => event_ids).all.each_with_object(Hash.new(0)) do |check_in, counts|
+                            counts[check_in.student_id] += 1
+                          end
+                        end
+      students.each do |student|
+        attended_count = attended_counts[student.id]
+        rows << [student.last_name, student.first_name, student.id, attended_count, event_ids.length - attended_count]
+      end
+      CSV.generate { |csv| rows.each { |row| csv << row } }
+    end
+
+    get "/events/:id/delete" do
+      require_event_admin
+      @event = event_from_params
+      @referrer = request.referrer
+      erb :delete_event
+    end
+
+    post "/events/:id/delete" do
+      require_event_admin
+      event = event_from_params
+      event.delete
+      redirect safe_referrer("/events")
+    end
+
+    get "/events/:id" do
+      require_event_admin
+      @event = event_from_params
+      @students = Student.order(:last_name, :first_name).all
+      @check_ins_by_student_id = @event.event_check_ins.each_with_object({}) do |check_in, check_ins|
+        check_ins[check_in.student_id] = check_in
+      end
+      erb :event
+    end
+
+    post "/events/:id/close" do
+      require_event_admin
+      event = event_from_params
+      halt(409, "Event is already closed.") unless event.open?
+      event.update(:closed_at => Time.now.utc)
+      redirect "/events/#{event.id}"
     end
 
     post "/signin" do
@@ -728,12 +852,33 @@ module CheesyHours
         @semester_start = Date.new(@semester_year, 6, 1)
         @semester_end = Date.new(@semester_year, 7, 31)
       end
+      attendance_end = [@semester_end, today].min
+      @attendance_events = if attendance_end < @semester_start
+                             []
+                           else
+                             Event.where(:date => @semester_start..attendance_end).order(:date, :id).all
+                           end
+      attendance_event_ids = @attendance_events.map(&:id)
+      @event_check_ins_by_event_id = if attendance_event_ids.empty?
+                                       {}
+                                     else
+                                       EventCheckIn.where(:student_id => @student.id, :event_id => attendance_event_ids)
+                                                   .all
+                                                   .each_with_object({}) { |check_in, rows| rows[check_in.event_id] = check_in }
+                                     end
       
       erb :my_attendance
     end
     get "/students/:id" do
       @student = Student[params[:id]]
       halt(400, "Invalid student.") if @student.nil?
+      today = user_time_zone.now.to_date
+      @attendance_events = Event.where { date <= today }
+                                .order(Sequel.desc(:date), Sequel.desc(:id))
+                                .all
+      @event_check_ins_by_event_id = @student.event_check_ins.each_with_object({}) do |check_in, rows|
+        rows[check_in.event_id] = check_in
+      end
       erb :student
     end
 
