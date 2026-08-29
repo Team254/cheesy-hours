@@ -46,7 +46,7 @@
   <% if @preview[:crossing_sessions] > 0 %>
     <div class="alert alert-error">
       Reset blocked: <%= @preview[:crossing_sessions] %> lab session<%= "s" unless @preview[:crossing_sessions] == 1 %>
-      started before the cutoff and is still open or ends after it. Resolve those sessions, then preview again.
+      started before the cutoff and either remain open or end after it. Resolve those sessions, then preview again.
     </div>
   <% else %>
     <hr />
