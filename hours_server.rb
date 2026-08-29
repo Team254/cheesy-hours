@@ -6,7 +6,9 @@
 require "active_support/time"
 require "cgi"
 require "cheesy-common"
+require "digest"
 require "pathological"
+require "securerandom"
 require "sinatra/base"
 require "json"
 
@@ -16,6 +18,13 @@ require "queries"
 
 module CheesyHours
   class Server < Sinatra::Base
+    RESET_ACTIVITY_TABLES = {
+      :lab_sessions => ["Lab sessions", :time_in, :datetime],
+      :excused_sessions => ["Excusals", :date, :date],
+      :optional_builds => ["Optional builds", :date, :date],
+      :scheduled_build_days => ["Scheduled builds", :date, :date],
+      :build_schedule_batch_entries => ["Schedule batch entries", :date, :date]
+    }.freeze
     DevUser = Struct.new(:name_display, :bcp_id) do
       def has_permission?(_permission)
         true
@@ -56,6 +65,160 @@ module CheesyHours
       def build_time_on(build_date, hour)
         user_time_zone.local(build_date.year, build_date.month, build_date.day, hour).utc
       end
+
+      def parse_reset_cutoff(value)
+        Date.iso8601(value.to_s)
+      rescue Date::Error
+        halt(400, "Invalid reset cutoff date.")
+      end
+
+      def reset_cutoff_time(cutoff_date)
+        user_time_zone.local(cutoff_date.year, cutoff_date.month, cutoff_date.day).utc
+      end
+
+      def reset_activity_datasets(cutoff_date)
+        cutoff_time = reset_cutoff_time(cutoff_date)
+        RESET_ACTIVITY_TABLES.each_with_object({}) do |(table, (_label, column, type)), datasets|
+          cutoff = type == :datetime ? cutoff_time : cutoff_date
+          datasets[table] = DB[table].where(Sequel[column] < cutoff)
+        end
+      end
+
+      def reset_activity_preview(cutoff_date)
+        cutoff_time = reset_cutoff_time(cutoff_date)
+        datasets = reset_activity_datasets(cutoff_date)
+        candidate_batch_ids = datasets[:build_schedule_batch_entries]
+                              .exclude(:batch_id => nil)
+                              .select_map(:batch_id)
+                              .uniq
+        remaining_batch_ids = DB[:build_schedule_batch_entries]
+                              .where(Sequel[:date] >= cutoff_date)
+                              .exclude(:batch_id => nil)
+                              .select_map(:batch_id)
+                              .uniq
+        batch_ids_to_delete = candidate_batch_ids - remaining_batch_ids
+        batch_delete_count = batch_ids_to_delete.empty? ? 0 : DB[:build_schedule_batches].where(:id => batch_ids_to_delete).count
+        rows = RESET_ACTIVITY_TABLES.map do |table, (label, _column, _type)|
+          delete_count = datasets[table].count
+          remaining_count = DB[table].count - delete_count
+          {
+            :table => table,
+            :label => label,
+            :delete_count => delete_count,
+            :remaining_count => remaining_count
+          }
+        end
+        remaining_batch_count = DB[:build_schedule_batches].count - batch_delete_count
+        rows << {
+          :table => :build_schedule_batches,
+          :label => "Schedule batches",
+          :delete_count => batch_delete_count,
+          :remaining_count => remaining_batch_count
+        }
+        project_seconds = DB.fetch(
+          "SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND, time_in, time_out)), 0) AS seconds FROM lab_sessions WHERE time_in < ? AND time_out IS NOT NULL",
+          cutoff_time
+        ).get(:seconds).to_f
+        crossing_sessions = DB[:lab_sessions]
+                            .where(Sequel[:time_in] < cutoff_time)
+                            .where(Sequel.|({ :time_out => nil }, Sequel[:time_out] > cutoff_time))
+                            .count
+        {
+          :cutoff_date => cutoff_date,
+          :cutoff_time => cutoff_time,
+          :datasets => datasets,
+          :batch_ids_to_delete => batch_ids_to_delete,
+          :rows => rows,
+          :project_hours => project_seconds / 3600,
+          :crossing_sessions => crossing_sessions
+        }
+      end
+
+      def reset_preview_signature(preview)
+        {
+          "cutoff_date" => preview[:cutoff_date].iso8601,
+          "delete_counts" => preview[:rows].each_with_object({}) do |row, counts|
+            counts[row[:table].to_s] = row[:delete_count]
+          end,
+          "delete_fingerprints" => preview[:datasets].each_with_object({}) do |(table, dataset), fingerprints|
+            fingerprints[table.to_s] = Digest::SHA256.hexdigest(dataset.select_map(:id).sort.join(","))
+          end.merge(
+            "build_schedule_batches" => Digest::SHA256.hexdigest(preview[:batch_ids_to_delete].sort.join(","))
+          ),
+          "crossing_sessions" => preview[:crossing_sessions]
+        }
+      end
+
+      def reindex_students_program
+        CheesyCommon::Config.program
+      rescue CheesyCommon::Config::NoValueFoundError
+        nil
+      end
+
+      def reindex_students_preview
+        program = reindex_students_program
+        members_students = CheesyCommon::Auth.find_users_with_permission("EVENTS_SIGNUP_EVENT", program: program).map do |student|
+          name = Array(student.name)
+          {
+            :id => Integer(student.bcp_id.to_s, 10),
+            :first_name => name[1].to_s,
+            :last_name => name[0].to_s
+          }
+        rescue ArgumentError
+          halt(409, "Members returned a student with an invalid ID.")
+        end
+        duplicate_ids = members_students.group_by { |student| student[:id] }
+                                        .select { |_id, students| students.length > 1 }
+                                        .keys
+        halt(409, "Members returned duplicate student IDs: #{duplicate_ids.sort.join(', ')}.") unless duplicate_ids.empty?
+        if members_students.any? { |student| student[:first_name].empty? || student[:last_name].empty? }
+          halt(409, "Members returned a student with a missing first or last name.")
+        end
+
+        members_students.sort_by! { |student| student[:id] }
+        database_students = Student.order(:id).all.map do |student|
+          { :id => student.id, :first_name => student.first_name, :last_name => student.last_name }
+        end
+        members_by_id = members_students.each_with_object({}) { |student, rows| rows[student[:id]] = student }
+        database_by_id = database_students.each_with_object({}) { |student, rows| rows[student[:id]] = student }
+        added_students = (members_by_id.keys - database_by_id.keys).sort.map { |id| members_by_id[id] }
+        removed_students = (database_by_id.keys - members_by_id.keys).sort.map { |id| database_by_id[id] }
+        updated_students = (members_by_id.keys & database_by_id.keys).sort.each_with_object([]) do |id, updates|
+          members_student = members_by_id[id]
+          database_student = database_by_id[id]
+          next if members_student[:first_name] == database_student[:first_name] &&
+                  members_student[:last_name] == database_student[:last_name]
+
+          updates << { :current => database_student, :replacement => members_student }
+        end
+
+        {
+          :program => program,
+          :members_students => members_students,
+          :database_students => database_students,
+          :added_students => added_students,
+          :updated_students => updated_students,
+          :removed_students => removed_students,
+          :unchanged_count => members_students.length - added_students.length - updated_students.length,
+          :blocked => members_students.empty?
+        }
+      end
+
+      def student_roster_fingerprint(students)
+        Digest::SHA256.hexdigest(JSON.generate(students.map do |student|
+          [student[:id], student[:first_name], student[:last_name]]
+        end))
+      end
+
+      def reindex_students_preview_signature(preview)
+        {
+          "program" => preview[:program].to_s,
+          "members_count" => preview[:members_students].length,
+          "database_count" => preview[:database_students].length,
+          "members_fingerprint" => student_roster_fingerprint(preview[:members_students]),
+          "database_fingerprint" => student_roster_fingerprint(preview[:database_students])
+        }
+      end
     end
     # Enforce authentication for all non-public routes.
     before do
@@ -76,8 +239,7 @@ module CheesyHours
         @user = CheesyCommon::Auth.get_user(request)
         if @user.nil?
           session[:user] = nil
-          # Note: signin_internal blocks all outside sources (localhost only)
-          unless ["/", "/sms", "/signin_internal", "/signout_automatic"].include?(request.path)
+          unless ["/", "/sms", "/signout_automatic"].include?(request.path)
             redirect "#{CheesyCommon::Config.members_url}?site=hours&path=#{request.path}"
           end
         else
@@ -125,19 +287,6 @@ module CheesyHours
       end
 
       redirect "/"
-    end
-
-    post "/signin_internal" do
-      @student = Student.get_by_id(params[:student_id])
-      halt(400, "Invalid student.") if @student.nil?
-
-      # Check for existing open lab sessions.
-      unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
-        halt(400, "An open lab session already exists for student #{@student.id}.")
-      end
-      @student.add_lab_session(:time_in => Time.now.utc)
-
-      "Success"
     end
 
     get "/leader_board" do
@@ -694,6 +843,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW")
       lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if lab_session.nil?
+      halt(400, "Lab session is already signed out.") unless lab_session.time_out.nil?
       lab_session.update(:time_out => Time.now.utc, :mentor_name => @user.name_display)
       redirect "/"
     end
@@ -815,24 +965,60 @@ module CheesyHours
     end
 
     get "/reindex_students" do
-      unless @user.has_permission?("DATABASE_ADMIN")
-        halt(400, "Need to be an administrator.")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+
+      @reindex_preview = reindex_students_preview
+      @reindex_result = session.delete(:reindex_students_result)
+      @reindex_token = SecureRandom.hex(32)
+      session[:reindex_students_preview] = reindex_students_preview_signature(@reindex_preview).merge("token" => @reindex_token)
+      erb :reindex_students
+    end
+
+    post "/reindex_students" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+      unless params[:confirmation] == "I want to reindex students."
+        halt(400, "Type \"I want to reindex students.\" to confirm.")
       end
 
-      program = begin; CheesyCommon::Config.program; rescue CheesyCommon::Config::NoValueFoundError; nil; end
-      students = CheesyCommon::Auth.find_users_with_permission("EVENTS_SIGNUP_EVENT", program: program)
-      imported_ids = []
-      students.each do |student|
-        existing = Student[student.bcp_id]
-        if existing
-          existing.update(:first_name => student.name[1], :last_name => student.name[0])
-        else
-          Student.create(:id => student.bcp_id, :first_name => student.name[1], :last_name => student.name[0])
+      expected_preview = session[:reindex_students_preview]
+      expected_token = expected_preview.is_a?(Hash) ? expected_preview["token"].to_s : ""
+      reindex_token = params[:reindex_token].to_s
+      valid_token = !reindex_token.empty? &&
+                    reindex_token.bytesize == expected_token.bytesize &&
+                    Rack::Utils.secure_compare(reindex_token, expected_token)
+      halt(403, "Reindex preview expired. Preview the roster again before continuing.") unless valid_token
+
+      expected_signature = expected_preview.reject { |key, _value| key == "token" }
+      reindex_preview = nil
+      DB.transaction do
+        reindex_preview = reindex_students_preview
+        halt(409, "Members returned no students. Reindexing is blocked.") if reindex_preview[:blocked]
+        unless expected_signature == reindex_students_preview_signature(reindex_preview)
+          halt(409, "The Members roster or database changed after this preview. Preview the roster again before continuing.")
         end
-        imported_ids << student.bcp_id
+
+        reindex_preview[:added_students].each do |student|
+          Student.create(:id => student[:id], :first_name => student[:first_name], :last_name => student[:last_name])
+        end
+        reindex_preview[:updated_students].each do |student|
+          replacement = student[:replacement]
+          Student.where(:id => replacement[:id]).update(
+            :first_name => replacement[:first_name],
+            :last_name => replacement[:last_name]
+          )
+        end
+        removed_ids = reindex_preview[:removed_students].map { |student| student[:id] }
+        Student.where(:id => removed_ids).delete unless removed_ids.empty?
       end
-      Student.exclude(:id => imported_ids).delete
-      "Successfully imported #{imported_ids.size} students."
+
+      session.delete(:reindex_students_preview)
+      session[:reindex_students_result] = {
+        "added_count" => reindex_preview[:added_students].length,
+        "updated_count" => reindex_preview[:updated_students].length,
+        "removed_count" => reindex_preview[:removed_students].length,
+        "unchanged_count" => reindex_preview[:unchanged_count]
+      }
+      redirect "/reindex_students"
     end
 
     get "/csv_report" do
@@ -873,12 +1059,64 @@ module CheesyHours
     end
 
     get "/reset_hours" do
-      unless @user.has_permission?("DATABASE_ADMIN")
-        halt(400, "Need to be an administrator.")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+
+      cutoff_value = params[:cutoff_date].to_s
+      @cutoff_date = cutoff_value.empty? ? user_time_zone.now.to_date : parse_reset_cutoff(cutoff_value)
+      @preview = reset_activity_preview(@cutoff_date)
+      @reset_result = session.delete(:reset_hours_result)
+      @reset_token = SecureRandom.hex(32)
+      session[:reset_hours_preview] = reset_preview_signature(@preview).merge("token" => @reset_token)
+      erb :reset_hours
+    end
+
+    post "/reset_hours" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+      halt(400, "Type \"I want to reset hours.\" to confirm.") unless params[:confirmation] == "I want to reset hours."
+
+      cutoff_date = parse_reset_cutoff(params[:cutoff_date])
+      expected_preview = session[:reset_hours_preview]
+      expected_token = expected_preview.is_a?(Hash) ? expected_preview["token"].to_s : ""
+      reset_token = params[:reset_token].to_s
+      valid_token = !reset_token.empty? &&
+                    reset_token.bytesize == expected_token.bytesize &&
+                    Rack::Utils.secure_compare(reset_token, expected_token)
+      halt(403, "Reset preview expired. Preview the reset again before continuing.") unless valid_token
+
+      expected_signature = expected_preview.reject { |key, _value| key == "token" }
+      deleted_counts = {}
+      reset_preview = nil
+      DB.transaction do
+        reset_preview = reset_activity_preview(cutoff_date)
+        unless expected_signature == reset_preview_signature(reset_preview)
+          halt(409, "The database changed after this preview. Preview the reset again before continuing.")
+        end
+        unless reset_preview[:crossing_sessions] == 0
+          halt(409, "Resolve open or cross-cutoff lab sessions before resetting hours.")
+        end
+
+        reset_preview[:datasets].each do |table, dataset|
+          previewed_ids = dataset.select_map(:id)
+          if previewed_ids.empty?
+            deleted_counts[table.to_s] = 0
+          else
+            deleted_counts[table.to_s] = DB[table].where(:id => previewed_ids).delete
+          end
+        end
+        batch_ids_to_delete = reset_preview[:batch_ids_to_delete]
+        deleted_counts["build_schedule_batches"] = if batch_ids_to_delete.empty?
+                                                       0
+                                                     else
+                                                       DB[:build_schedule_batches].where(:id => batch_ids_to_delete).delete
+                                                     end
       end
 
-      DB[:lab_sessions].where(Sequel[:time_out] < DateTime.new(2018, 1, 6)).delete
-      "Reset Hours"
+      session.delete(:reset_hours_preview)
+      session[:reset_hours_result] = {
+        "cutoff_date" => cutoff_date.iso8601,
+        "deleted_counts" => deleted_counts
+      }
+      redirect "/reset_hours?cutoff_date=#{cutoff_date.iso8601}"
     end
 
     get "/signout_automatic" do
