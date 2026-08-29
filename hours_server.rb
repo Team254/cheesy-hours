@@ -299,7 +299,8 @@ module CheesyHours
       @events = Event.eager(:event_check_ins).order(Sequel.desc(:date), Sequel.desc(:id)).all
       @student_count = Student.count
       @attendance_students = Student.order(:last_name, :first_name).all
-      reportable_event_ids = @events.select { |event| event.date <= user_time_zone.now.to_date }.map(&:id)
+      today = user_time_zone.now.to_date
+      reportable_event_ids = @events.select { |event| event.date < today || (event.date == today && !event.open?) }.map(&:id)
       @attended_event_counts_by_student_id = if reportable_event_ids.empty?
                                                Hash.new(0)
                                              else
@@ -334,7 +335,7 @@ module CheesyHours
       content_type "text/csv"
       rows = [["Last Name", "First Name", "Student ID", "Events Attended", "Events Missed"]]
       today = user_time_zone.now.to_date
-      event_ids = Event.where { date <= today }.select_map(:id)
+      event_ids = Event.all.select { |event| event.date < today || (event.date == today && !event.open?) }.map(&:id)
       students = Student.order(:last_name, :first_name).all
       attended_counts = if event_ids.empty?
                           Hash.new(0)

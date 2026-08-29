@@ -1,8 +1,9 @@
 <%= erb :header %>
 
 <div class="container">
+  <% today = user_time_zone.now.to_date %>
   <div class="pull-right" style="margin-top: 20px; white-space: nowrap;">
-    <% if @event.open? %>
+    <% if @event.open_on?(today) %>
       <form action="/events/<%= @event.id %>/close" method="POST" style="display: inline;">
         <button type="submit" class="btn btn-warning">Close event</button>
       </form>
@@ -12,8 +13,8 @@
 
   <h2><%= Rack::Utils.escape_html(@event.title) %></h2>
   <p><strong>Date:</strong> <%= @event.date.strftime("%B %-d, %Y") %></p>
-  <p><strong>Status:</strong> <%= @event.open? ? "Open" : "Closed" %></p>
-  <% if @event.open? %>
+  <p><strong>Status:</strong> <%= @event.status_on(today) %></p>
+  <% if @event.open_on?(today) %>
     <p><strong>Check-in code:</strong> <span style="font-size: 1.5em;"><%= @event.check_in_code %></span></p>
   <% end %>
   <p><strong>Attendance:</strong> <%= @check_ins_by_student_id.length %> / <%= @students.length %></p>
