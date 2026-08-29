@@ -857,6 +857,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_VIEW")
       lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if lab_session.nil?
+      halt(400, "Lab session is already signed out.") unless lab_session.time_out.nil?
       lab_session.update(:time_out => Time.now.utc, :mentor_name => @user.name_display)
       redirect "/"
     end
