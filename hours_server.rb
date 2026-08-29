@@ -20,14 +20,11 @@ module CheesyHours
   class Server < Sinatra::Base
     RESET_ACTIVITY_TABLES = {
       :lab_sessions => ["Lab sessions", :time_in, :datetime],
-      :mentor_checkins => ["Mentor check-ins", :time_in, :datetime],
       :excused_sessions => ["Excusals", :date, :date],
       :optional_builds => ["Optional builds", :date, :date],
       :scheduled_build_days => ["Scheduled builds", :date, :date],
       :build_schedule_batch_entries => ["Schedule batch entries", :date, :date]
     }.freeze
-    RESET_AUTO_INCREMENT_TABLES = (RESET_ACTIVITY_TABLES.keys + [:build_schedule_batches]).freeze
-
     DevUser = Struct.new(:name_display, :bcp_id) do
       def has_permission?(_permission)
         true
@@ -108,8 +105,7 @@ module CheesyHours
             :table => table,
             :label => label,
             :delete_count => delete_count,
-            :remaining_count => remaining_count,
-            :reset_ids => remaining_count == 0
+            :remaining_count => remaining_count
           }
         end
         remaining_batch_count = DB[:build_schedule_batches].count - batch_delete_count
@@ -117,8 +113,7 @@ module CheesyHours
           :table => :build_schedule_batches,
           :label => "Schedule batches",
           :delete_count => batch_delete_count,
-          :remaining_count => remaining_batch_count,
-          :reset_ids => remaining_batch_count == 0
+          :remaining_count => remaining_batch_count
         }
         project_seconds = DB.fetch(
           "SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND, time_in, time_out)), 0) AS seconds FROM lab_sessions WHERE time_in < ? AND time_out IS NOT NULL",
@@ -151,6 +146,77 @@ module CheesyHours
             "build_schedule_batches" => Digest::SHA256.hexdigest(preview[:batch_ids_to_delete].sort.join(","))
           ),
           "crossing_sessions" => preview[:crossing_sessions]
+        }
+      end
+
+      def reindex_students_program
+        CheesyCommon::Config.program
+      rescue CheesyCommon::Config::NoValueFoundError
+        nil
+      end
+
+      def reindex_students_preview
+        program = reindex_students_program
+        members_students = CheesyCommon::Auth.find_users_with_permission("EVENTS_SIGNUP_EVENT", program: program).map do |student|
+          name = Array(student.name)
+          {
+            :id => Integer(student.bcp_id.to_s, 10),
+            :first_name => name[1].to_s,
+            :last_name => name[0].to_s
+          }
+        rescue ArgumentError
+          halt(409, "Members returned a student with an invalid ID.")
+        end
+        duplicate_ids = members_students.group_by { |student| student[:id] }
+                                        .select { |_id, students| students.length > 1 }
+                                        .keys
+        halt(409, "Members returned duplicate student IDs: #{duplicate_ids.sort.join(', ')}.") unless duplicate_ids.empty?
+        if members_students.any? { |student| student[:first_name].empty? || student[:last_name].empty? }
+          halt(409, "Members returned a student with a missing first or last name.")
+        end
+
+        members_students.sort_by! { |student| student[:id] }
+        database_students = Student.order(:id).all.map do |student|
+          { :id => student.id, :first_name => student.first_name, :last_name => student.last_name }
+        end
+        members_by_id = members_students.each_with_object({}) { |student, rows| rows[student[:id]] = student }
+        database_by_id = database_students.each_with_object({}) { |student, rows| rows[student[:id]] = student }
+        added_students = (members_by_id.keys - database_by_id.keys).sort.map { |id| members_by_id[id] }
+        removed_students = (database_by_id.keys - members_by_id.keys).sort.map { |id| database_by_id[id] }
+        updated_students = (members_by_id.keys & database_by_id.keys).sort.each_with_object([]) do |id, updates|
+          members_student = members_by_id[id]
+          database_student = database_by_id[id]
+          next if members_student[:first_name] == database_student[:first_name] &&
+                  members_student[:last_name] == database_student[:last_name]
+
+          updates << { :current => database_student, :replacement => members_student }
+        end
+
+        {
+          :program => program,
+          :members_students => members_students,
+          :database_students => database_students,
+          :added_students => added_students,
+          :updated_students => updated_students,
+          :removed_students => removed_students,
+          :unchanged_count => members_students.length - added_students.length - updated_students.length,
+          :blocked => members_students.empty?
+        }
+      end
+
+      def student_roster_fingerprint(students)
+        Digest::SHA256.hexdigest(JSON.generate(students.map do |student|
+          [student[:id], student[:first_name], student[:last_name]]
+        end))
+      end
+
+      def reindex_students_preview_signature(preview)
+        {
+          "program" => preview[:program].to_s,
+          "members_count" => preview[:members_students].length,
+          "database_count" => preview[:database_students].length,
+          "members_fingerprint" => student_roster_fingerprint(preview[:members_students]),
+          "database_fingerprint" => student_roster_fingerprint(preview[:database_students])
         }
       end
     end
@@ -912,24 +978,60 @@ module CheesyHours
     end
 
     get "/reindex_students" do
-      unless @user.has_permission?("DATABASE_ADMIN")
-        halt(400, "Need to be an administrator.")
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+
+      @reindex_preview = reindex_students_preview
+      @reindex_result = session.delete(:reindex_students_result)
+      @reindex_token = SecureRandom.hex(32)
+      session[:reindex_students_preview] = reindex_students_preview_signature(@reindex_preview).merge("token" => @reindex_token)
+      erb :reindex_students
+    end
+
+    post "/reindex_students" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("DATABASE_ADMIN")
+      unless params[:confirmation] == "I want to reindex students."
+        halt(400, "Type \"I want to reindex students.\" to confirm.")
       end
 
-      program = begin; CheesyCommon::Config.program; rescue CheesyCommon::Config::NoValueFoundError; nil; end
-      students = CheesyCommon::Auth.find_users_with_permission("EVENTS_SIGNUP_EVENT", program: program)
-      imported_ids = []
-      students.each do |student|
-        existing = Student[student.bcp_id]
-        if existing
-          existing.update(:first_name => student.name[1], :last_name => student.name[0])
-        else
-          Student.create(:id => student.bcp_id, :first_name => student.name[1], :last_name => student.name[0])
+      expected_preview = session[:reindex_students_preview]
+      expected_token = expected_preview.is_a?(Hash) ? expected_preview["token"].to_s : ""
+      reindex_token = params[:reindex_token].to_s
+      valid_token = !reindex_token.empty? &&
+                    reindex_token.bytesize == expected_token.bytesize &&
+                    Rack::Utils.secure_compare(reindex_token, expected_token)
+      halt(403, "Reindex preview expired. Preview the roster again before continuing.") unless valid_token
+
+      expected_signature = expected_preview.reject { |key, _value| key == "token" }
+      reindex_preview = nil
+      DB.transaction do
+        reindex_preview = reindex_students_preview
+        halt(409, "Members returned no students. Reindexing is blocked.") if reindex_preview[:blocked]
+        unless expected_signature == reindex_students_preview_signature(reindex_preview)
+          halt(409, "The Members roster or database changed after this preview. Preview the roster again before continuing.")
         end
-        imported_ids << student.bcp_id
+
+        reindex_preview[:added_students].each do |student|
+          Student.create(:id => student[:id], :first_name => student[:first_name], :last_name => student[:last_name])
+        end
+        reindex_preview[:updated_students].each do |student|
+          replacement = student[:replacement]
+          Student.where(:id => replacement[:id]).update(
+            :first_name => replacement[:first_name],
+            :last_name => replacement[:last_name]
+          )
+        end
+        removed_ids = reindex_preview[:removed_students].map { |student| student[:id] }
+        Student.where(:id => removed_ids).delete unless removed_ids.empty?
       end
-      Student.exclude(:id => imported_ids).delete
-      "Successfully imported #{imported_ids.size} students."
+
+      session.delete(:reindex_students_preview)
+      session[:reindex_students_result] = {
+        "added_count" => reindex_preview[:added_students].length,
+        "updated_count" => reindex_preview[:updated_students].length,
+        "removed_count" => reindex_preview[:removed_students].length,
+        "unchanged_count" => reindex_preview[:unchanged_count]
+      }
+      redirect "/reindex_students"
     end
 
     get "/csv_report" do
@@ -1022,13 +1124,10 @@ module CheesyHours
                                                      end
       end
 
-      reset_tables = RESET_AUTO_INCREMENT_TABLES.select { |table| DB[table].count == 0 }
-      reset_tables.each { |table| DB.run("ALTER TABLE `#{table}` AUTO_INCREMENT = 1") }
       session.delete(:reset_hours_preview)
       session[:reset_hours_result] = {
         "cutoff_date" => cutoff_date.iso8601,
-        "deleted_counts" => deleted_counts,
-        "reset_tables" => reset_tables.map(&:to_s)
+        "deleted_counts" => deleted_counts
       }
       redirect "/reset_hours?cutoff_date=#{cutoff_date.iso8601}"
     end
