@@ -14,7 +14,7 @@ Sequel.migration do
     create_table(:event_check_ins) do
       primary_key :id
       foreign_key :event_id, :events, null: false, on_delete: :cascade
-      foreign_key :student_id, :students, null: false, on_delete: :cascade
+      Integer :student_id, null: false
       DateTime :checked_in_at, null: false
       unique [:event_id, :student_id]
     end
