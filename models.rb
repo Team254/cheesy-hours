@@ -6,6 +6,8 @@
 require "sequel"
 
 require "db"
+require "models/event"
+require "models/event_check_in"
 require "models/lab_session"
 require "models/mentor"
 require "models/optional_build"

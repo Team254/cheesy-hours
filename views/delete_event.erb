@@ -1,0 +1,12 @@
+<%= erb :header %>
+
+<div class="container">
+  <form action="/events/<%= @event.id %>/delete" method="POST">
+    <input type="hidden" name="referrer" value="<%= Rack::Utils.escape_html(@referrer.to_s) %>">
+    <p>Delete <strong><%= Rack::Utils.escape_html(@event.title) %></strong> and all of its check-ins?</p>
+    <button type="submit" class="btn btn-danger">Delete event</button>
+    <a href="/events/<%= @event.id %>" class="btn">Cancel</a>
+  </form>
+</div>
+
+<%= erb :footer %>
