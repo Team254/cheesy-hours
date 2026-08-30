@@ -320,6 +320,7 @@ module CheesyHours
       halt(400, "Event title is required.") if title.empty?
       halt(400, "Event title is too long.") if title.length > 255
       event_date = parse_build_date(params[:date])
+      halt(400, "Event date cannot be before today.") if event_date < user_time_zone.now.to_date
       event = Event.create(
         :title => title,
         :date => event_date,
