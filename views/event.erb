@@ -31,10 +31,11 @@
     <tbody>
       <% @students.each do |student| %>
         <% check_in = @check_ins_by_student_id[student.id] %>
-        <tr class="<%= "error" if check_in.nil? %>">
+        <% in_progress = check_in.nil? && @event.open_on?(today) %>
+        <tr class="<%= "error" if check_in.nil? && !in_progress %>">
           <td><%= student.id %></td>
           <td><a href="/students/<%= student.id %>"><%= Rack::Utils.escape_html("#{student.first_name} #{student.last_name}") %></a></td>
-          <td><%= check_in ? "Present" : "Absent" %></td>
+          <td><%= check_in ? "Present" : (in_progress ? "In progress" : "Absent") %></td>
           <td><%= check_in.checked_in_at.in_time_zone(USER_TIME_ZONE).strftime("%l:%M %p") rescue "" %></td>
         </tr>
       <% end %>

@@ -55,10 +55,11 @@
       <tbody>
         <% @attendance_events.each do |event| %>
           <% present = @event_check_ins_by_event_id.key?(event.id) %>
-          <tr class="<%= "error" unless present %>">
+          <% in_progress = !present && event.open_on?(user_time_zone.now.to_date) %>
+          <tr class="<%= "error" unless present || in_progress %>">
             <td><%= event.date.strftime("%m/%d/%Y") %></td>
             <td><%= Rack::Utils.escape_html(event.title) %></td>
-            <td><%= present ? "Present" : "Absent" %></td>
+            <td><%= present ? "Present" : (in_progress ? "In progress" : "Absent") %></td>
           </tr>
         <% end %>
         <% if @attendance_events.empty? %>
