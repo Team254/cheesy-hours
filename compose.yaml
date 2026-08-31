@@ -7,26 +7,23 @@ services:
     environment:
       MYSQL_DATABASE: cheesy_frc_hours
       MYSQL_USER: cheesy_hours
-      MYSQL_PASSWORD_FILE: /run/secrets/db_password
-      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+      MYSQL_PASSWORD: "254254254"
+      MYSQL_ROOT_PASSWORD: "254254254"
       TZ: UTC
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping --host=127.0.0.1 --user=root --password=$$(cat /run/secrets/db_root_password) --silent"]
+      test: ["CMD", "mysqladmin", "ping", "--host=127.0.0.1", "--user=root", "--password=254254254", "--silent"]
       interval: 5s
       timeout: 5s
       retries: 30
       start_period: 30s
-    secrets:
-      - db_password
-      - db_root_password
     volumes:
       - mysql84_data:/var/lib/mysql
 
   app:
     platform: linux/amd64
-    build:
-      context: .
+    build: .
     environment:
+      DB_PASSWORD: "254254254"
       DISABLE_AUTH: "1"
       TEAM254_ENV: dev
       TZ: UTC
@@ -35,7 +32,6 @@ services:
       - -rjson
       - -e
       - |
-        password = File.read("/run/secrets/db_password").strip
         config = {
           "global" => {
             "automatic_signout_offset_hours" => -2,
@@ -46,12 +42,13 @@ services:
             "program" => "FRC"
           },
           "dev" => {
-            "db_password" => password,
+            "db_password" => ENV.fetch("DB_PASSWORD"),
             "members_url" => "http://127.0.0.1",
             "signin_ip_whitelist" => []
           }
         }
         File.write("/app/config.json", JSON.generate(config))
+        abort "Database migration failed." unless system("bundle", "exec", "rake", "db:migrate")
         exec(*ARGV)
       - --
     command:
@@ -70,15 +67,7 @@ services:
       retries: 30
       start_period: 30s
     ports:
-      - 127.0.0.1:9006:9006
-    secrets:
-      - db_password
-
-secrets:
-  db_password:
-    file: ${CHEESY_HOURS_DOCKER_PRIVATE_DIR:-/Volumes/T7ShieldAPFS/CheesyHoursDocker/private}/db_password
-  db_root_password:
-    file: ${CHEESY_HOURS_DOCKER_PRIVATE_DIR:-/Volumes/T7ShieldAPFS/CheesyHoursDocker/private}/db_root_password
+      - "127.0.0.1:9006:9006"
 
 volumes:
   mysql84_data:
