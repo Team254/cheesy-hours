@@ -1,4 +1,4 @@
-name: cheesy-hours-production-parity
+name: cheesy-hours-development
 
 services:
   db:
