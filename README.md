@@ -10,10 +10,46 @@ interface.
 
 When logged in, students and mentors can view the leaderboard of students ranked by their total hours spent in the lab.
 
+## Local development with Docker
+
+Install and start Docker Desktop, then run this command from the repository directory:
+
+```bash
+docker compose up --build --detach
+```
+
+The first start builds the application, starts MySQL, and runs the database migrations automatically. When both
+containers are healthy, open [http://localhost:9006](http://localhost:9006).
+
+This Compose configuration is only for local development. It disables authentication, grants the local development
+user every application permission, and uses `254254254` as the test database passwords. The application port is bound
+only to the local computer. Do not use this configuration for a public or production deployment.
+
+Check whether the containers are ready:
+
+```bash
+docker compose ps
+```
+
+View application logs if startup fails:
+
+```bash
+docker compose logs --follow app
+```
+
+Stop the application without deleting its database:
+
+```bash
+docker compose down
+```
+
+Running `docker compose down --volumes` also deletes the local database and should only be used when a completely fresh
+database is wanted.
+
 ## Adapting for your team's use
 ### Prerequisites
 In order to run this web application, you will need the following:
-1. A web server with Ruby and MySQL installed. We use Ruby 2.3.0 and MySQL 5.6. 
+1. A web server with Ruby and MySQL installed. We use Ruby 4.0.6 and MySQL 8.4.11. 
 1. A Twilio account configured with a phone number for SMS. This will cost you about $1 per month plus $0.01 per message
 sent or received.
 

@@ -3,6 +3,8 @@
 #
 # Script for starting/stopping the hours server.
 
+ENV["RACK_ENV"] ||= ENV["TEAM254_ENV"] == "dev" ? "development" : "production"
+
 require "bundler/setup"
 require "daemons"
 require "pathological"
