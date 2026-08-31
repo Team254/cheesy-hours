@@ -49,7 +49,7 @@ database is wanted.
 ## Adapting for your team's use
 ### Prerequisites
 In order to run this web application, you will need the following:
-1. A web server with Ruby and MySQL installed. We use Ruby 2.3.0 and MySQL 5.6. 
+1. A web server with Ruby and MySQL installed. We use Ruby 4.0.6 and MySQL 8.4.11. 
 1. A Twilio account configured with a phone number for SMS. This will cost you about $1 per month plus $0.01 per message
 sent or received.
 
