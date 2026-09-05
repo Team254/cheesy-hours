@@ -1,9 +1,10 @@
 GIT
   remote: https://github.com/Team254/cheesy-common.git
-  revision: ba8620387d40dd3d1ec1b665ac7c7dbe279dd0e4
+  revision: 10ae5f17f81ee9a326ea2998df2d70921bf8ce78
   specs:
     cheesy-common (0.0.1)
       aescrypt (~> 1.0)
+      base64 (~> 0.3)
       httparty (~> 0.13)
 
 GEM
