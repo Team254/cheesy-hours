@@ -20,14 +20,25 @@ class Student < Sequel::Model
     return student
   end
 
+  def counted_before_join_date?(utc_time)
+    return false if join_date.nil? || utc_time.nil?
+    utc_time.in_time_zone(USER_TIME_ZONE).to_date <= join_date
+  end
+
+  def countable_lab_sessions
+    lab_sessions.reject do |session|
+      session.time_out.nil? || session.excluded_from_total || counted_before_join_date?(session.time_in)
+    end
+  end
+
   def project_hours
-    lab_sessions.reject { |session| session.time_out.nil? || session.excluded_from_total }.inject(0) do |sum, session|
+    countable_lab_sessions.inject(0) do |sum, session|
       sum + session.duration_hours
     end
   end
 
   def week_hours(week)
-    lab_sessions.reject { |session| session.time_out.nil? }.select do |session|
+    lab_sessions.reject { |session| session.time_out.nil? || counted_before_join_date?(session.time_in) }.select do |session|
       session.time_in >= week[:start] && session.time_in < week[:end]
     end.inject(0) do |sum, session|
       sum + session.duration_hours
@@ -35,16 +46,16 @@ class Student < Sequel::Model
   end
 
   def total_sessions_attended
-    lab_sessions.reject { |session| session.time_out.nil? || session.excluded_from_total }.inject(0) do |sum, session|
+    countable_lab_sessions.inject(0) do |sum, session|
       sum + 1
     end
   end
 
   def project_seconds_between(starts_at, ends_at)
-    intervals = lab_sessions.reject { |session| session.time_out.nil? || session.excluded_from_total }
-                            .map { |session| [[session.time_in, starts_at].max, [session.time_out, ends_at].min] }
-                            .select { |interval_start, interval_end| interval_start < interval_end }
-                            .sort_by(&:first)
+    intervals = countable_lab_sessions
+                .map { |session| [[session.time_in, starts_at].max, [session.time_out, ends_at].min] }
+                .select { |interval_start, interval_end| interval_start < interval_end }
+                .sort_by(&:first)
     merged_intervals = intervals.each_with_object([]) do |interval, merged|
       if merged.empty? || interval.first > merged.last.last
         merged << interval

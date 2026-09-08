@@ -22,7 +22,7 @@
     <small>Range: <%= semester_name %> <%= @semester_year %> (<%= @semester_start.strftime("%b %-d") %> - <%= @semester_end.strftime("%b %-d") %>)</small>
   </form>
 
-  <% summary_row = DB.fetch(STUDENT_ATTENDANCE_RANGE_QUERY, range_start, range_end, @student.id, @student.id, @student.id).first %>
+  <% summary_row = DB.fetch(STUDENT_ATTENDANCE_RANGE_QUERY, range_start, range_end, @student.id, @student.id, @student.id, @student.id).first %>
   <% if summary_row %>
     <div style="margin-bottom: 1.5rem;">
       <h3>Summary for <%= semester_name %> <%= @semester_year %></h3>
