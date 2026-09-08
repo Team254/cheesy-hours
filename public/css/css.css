@@ -210,8 +210,7 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
 
 .cross-bg {
     background:
-        repeating-linear-gradient(216deg, transparent, transparent 4px, var(--color-b) 4px, var(--color-b) 8px),
-        repeating-linear-gradient(-216deg, transparent, transparent 4px, var(--color-b) 4px, var(--color-b) 8px),
+        linear-gradient(to bottom right, transparent calc(50% - 1px), var(--color-b) calc(50% - 1px), var(--color-b) calc(50% + 1px), transparent calc(50% + 1px)),
         var(--color-a);
 }
 
