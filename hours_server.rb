@@ -522,7 +522,8 @@ module CheesyHours
         current_streak_start = nil
 
         rows.sort_by { |row| row[:build_date] }.each do |row|
-          next unless row[:build_date] <= today && row[:finalized] == 1 && row[:required] == 1
+          next unless row[:build_date] <= today && row[:finalized] == 1 && row[:required] == 1 &&
+                      row[:not_yet_joined] == 0
 
           if row[:attended] == 0 && row[:excused] == 0
             absence_dates << row[:build_date]
