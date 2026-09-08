@@ -211,6 +211,7 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
 .cross-bg {
     background:
         linear-gradient(to bottom right, transparent calc(50% - 1px), var(--color-b) calc(50% - 1px), var(--color-b) calc(50% + 1px), transparent calc(50% + 1px)),
+        linear-gradient(to bottom left, transparent calc(50% - 1px), var(--color-b) calc(50% - 1px), var(--color-b) calc(50% + 1px), transparent calc(50% + 1px)),
         var(--color-a);
 }
 
