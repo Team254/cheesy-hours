@@ -168,7 +168,7 @@ module CheesyHours
       end
 
       def parse_members_join_date(members_student)
-        raw = members_student.join_date rescue nil
+        raw = members_student.join_date
         return nil if raw.nil? || raw.to_s.strip.empty?
         Date.iso8601(raw.to_s)
       rescue Date::Error
