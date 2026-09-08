@@ -49,6 +49,20 @@ module CheesyHours
         time.utc
       end
 
+      def halt_if_before_join_date(student, *utc_times)
+        return if student.nil? || student.join_date.nil?
+        return unless utc_times.compact.any? { |time| student.counted_before_join_date?(time) }
+        halt(400, "That date is on or before #{student.first_name} #{student.last_name}'s join date " \
+                  "(#{student.join_date}). Correct the join date in Members instead.")
+      end
+
+      def halt_if_build_date_before_join_date(student, build_date)
+        return if student.nil? || student.join_date.nil? || build_date.nil?
+        return if build_date > student.join_date
+        halt(400, "That date is on or before #{student.first_name} #{student.last_name}'s join date " \
+                  "(#{student.join_date}). Correct the join date in Members instead.")
+      end
+
       def safe_referrer(fallback = "/")
         ref = params[:referrer].to_s.gsub("\\", "/")
         ref.start_with?("/") && !ref.start_with?("//") ? ref : fallback
@@ -153,6 +167,14 @@ module CheesyHours
         }
       end
 
+      def parse_members_join_date(members_student)
+        raw = members_student.join_date rescue nil
+        return nil if raw.nil? || raw.to_s.strip.empty?
+        Date.iso8601(raw.to_s)
+      rescue Date::Error
+        halt(409, "Members returned a student with an invalid join date.")
+      end
+
       def reindex_students_program
         CheesyCommon::Config.program
       rescue CheesyCommon::Config::NoValueFoundError
@@ -166,7 +188,8 @@ module CheesyHours
           {
             :id => Integer(student.bcp_id.to_s, 10),
             :first_name => name[1].to_s,
-            :last_name => name[0].to_s
+            :last_name => name[0].to_s,
+            :join_date => parse_members_join_date(student)
           }
         rescue ArgumentError
           halt(409, "Members returned a student with an invalid ID.")
@@ -181,7 +204,8 @@ module CheesyHours
 
         members_students.sort_by! { |student| student[:id] }
         database_students = Student.order(:id).all.map do |student|
-          { :id => student.id, :first_name => student.first_name, :last_name => student.last_name }
+          { :id => student.id, :first_name => student.first_name, :last_name => student.last_name,
+            :join_date => student.join_date }
         end
         members_by_id = members_students.each_with_object({}) { |student, rows| rows[student[:id]] = student }
         database_by_id = database_students.each_with_object({}) { |student, rows| rows[student[:id]] = student }
@@ -191,7 +215,8 @@ module CheesyHours
           members_student = members_by_id[id]
           database_student = database_by_id[id]
           next if members_student[:first_name] == database_student[:first_name] &&
-                  members_student[:last_name] == database_student[:last_name]
+                  members_student[:last_name] == database_student[:last_name] &&
+                  members_student[:join_date] == database_student[:join_date]
 
           updates << { :current => database_student, :replacement => members_student }
         end
@@ -210,7 +235,7 @@ module CheesyHours
 
       def student_roster_fingerprint(students)
         Digest::SHA256.hexdigest(JSON.generate(students.map do |student|
-          [student[:id], student[:first_name], student[:last_name]]
+          [student[:id], student[:first_name], student[:last_name], student[:join_date].to_s]
         end))
       end
 
@@ -403,6 +428,7 @@ module CheesyHours
       unless LabSession.where(:student_id => @student.id, :time_out => nil).empty?
         halt(400, "An open lab session already exists for student #{@student.id}.")
       end
+      halt_if_before_join_date(@student, Time.now.utc)
       @student.add_lab_session(:time_in => Time.now.utc)
 
       # Add an optional build to the database if necessary.
@@ -893,6 +919,7 @@ module CheesyHours
       @referrer = request.referrer
       if !params[:date].nil?
         @date = params[:date]
+        halt_if_build_date_before_join_date(@student, parse_build_date(@date))
       end
       erb :mark_excused
     end
@@ -900,6 +927,9 @@ module CheesyHours
     post "/students/:id/mark_excused" do
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       halt(400, "Missing date.") if params[:date].nil? || params[:date] == ""
+      student = Student[params[:id]]
+      halt(400, "Invalid student.") if student.nil?
+      halt_if_build_date_before_join_date(student, parse_build_date(params[:date]))
       ExcusedSession.create(:date => params[:date], :student_id => params[:id])
       redirect safe_referrer
     end
@@ -927,6 +957,7 @@ module CheesyHours
       @referrer = request.referrer
       if !params[:date].nil?
         # allow prefilling the date based on a url parameter
+        halt_if_build_date_before_join_date(@student, parse_build_date(params[:date]))
         @lab_session = OpenStruct.new(:time_in => params[:date], :time_out => params[:date])
       end
       erb :edit_lab_session
@@ -936,6 +967,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
+      halt_if_before_join_date(student, parse_user_time(params[:time_in]))
       student.add_lab_session(:time_in => parse_user_time(params[:time_in]),
                               :time_out => params[:time_out].to_s.empty? ? nil : parse_user_time(params[:time_out]),
                               :notes => params[:notes],
@@ -947,6 +979,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
+      halt_if_before_join_date(@lab_session.student, @lab_session.time_in)
       @referrer = request.referrer
       erb :edit_lab_session
     end
@@ -955,6 +988,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
+      halt_if_before_join_date(@lab_session.student, @lab_session.time_in, parse_user_time(params[:time_in]))
       if !params[:time_out].to_s.empty? && @lab_session.time_out.nil?
         mentor_name = @user.name_display
       elsif params[:time_out].to_s.empty? && @lab_session.time_out
@@ -976,6 +1010,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_DELETE")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
+      halt_if_before_join_date(@lab_session.student, @lab_session.time_in)
       @referrer = request.referrer
       erb :delete_lab_session
     end
@@ -984,6 +1019,7 @@ module CheesyHours
       halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_DELETE")
       @lab_session = LabSession[params[:id]]
       halt(400, "Invalid lab session.") if @lab_session.nil?
+      halt_if_before_join_date(@lab_session.student, @lab_session.time_in)
       @lab_session.delete
       redirect safe_referrer("/leader_board")
     end
@@ -1147,13 +1183,15 @@ module CheesyHours
         end
 
         reindex_preview[:added_students].each do |student|
-          Student.create(:id => student[:id], :first_name => student[:first_name], :last_name => student[:last_name])
+          Student.create(:id => student[:id], :first_name => student[:first_name], :last_name => student[:last_name],
+                         :join_date => student[:join_date])
         end
         reindex_preview[:updated_students].each do |student|
           replacement = student[:replacement]
           Student.where(:id => replacement[:id]).update(
             :first_name => replacement[:first_name],
-            :last_name => replacement[:last_name]
+            :last_name => replacement[:last_name],
+            :join_date => replacement[:join_date]
           )
         end
         removed_ids = reindex_preview[:removed_students].map { |student| student[:id] }

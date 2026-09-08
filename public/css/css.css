@@ -6,6 +6,7 @@
     --present-color: #39ad4d;
     --missing-color: #d00000;
     --scheduled-color: #8f9bb3;
+    --not-yet-joined-color: #b0b6c0;
     --calendar-scroll-proxy-height: 16px;
     --calendar-sticky-gap: 12px;
     --calendar-header-height: 54px;
@@ -205,6 +206,13 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
     margin-right: -5px;
     display: flex !important;
     flex-direction: row-reverse;
+}
+
+.cross-bg {
+    background:
+        repeating-linear-gradient(216deg, transparent, transparent 4px, var(--color-b) 4px, var(--color-b) 8px),
+        repeating-linear-gradient(-216deg, transparent, transparent 4px, var(--color-b) 4px, var(--color-b) 8px),
+        var(--color-a);
 }
 
 .stripe-bg {

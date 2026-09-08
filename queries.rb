@@ -80,6 +80,16 @@ def optional_build_case(build_date_ref)
   SQL
 end
 
+def not_yet_joined_case(build_date_ref, join_date_ref)
+  <<~SQL
+    CASE
+        WHEN ISNULL(#{join_date_ref}) THEN 0
+        WHEN #{build_date_ref} <= #{join_date_ref} THEN 1
+        ELSE 0
+    END
+  SQL
+end
+
 def build_attended_case
   <<~SQL
     CASE
@@ -183,6 +193,7 @@ WITH
         )
         SELECT
             id as student_id,
+            join_date,
             sessions_attended_count
         FROM
             cheesy_frc_hours.students
@@ -199,6 +210,7 @@ SELECT
         ELSE 1
     END AS required,
     MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused,
+    #{not_yet_joined_case("build_days.build_date", "ordered_students.join_date")} AS not_yet_joined,
     MAX(cheesy_frc_hours.lab_sessions.id) AS session_id,
     cheesy_frc_hours.scheduled_build_days.starts_at,
     cheesy_frc_hours.scheduled_build_days.ends_at
@@ -216,6 +228,7 @@ SELECT
 GROUP BY
     build_days.build_date,
     ordered_students.student_id,
+    ordered_students.join_date,
     ordered_students.sessions_attended_count,
     cheesy_frc_hours.optional_builds.date,
     cheesy_frc_hours.scheduled_build_days.date,
@@ -265,6 +278,7 @@ WITH
         )
         SELECT
             id as student_id,
+            join_date,
             sessions_attended_count
         FROM
             cheesy_frc_hours.students
@@ -281,6 +295,7 @@ SELECT
         ELSE 1
     END AS required,
     MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused,
+    #{not_yet_joined_case("filtered_build_days.build_date", "ordered_students.join_date")} AS not_yet_joined,
     MAX(cheesy_frc_hours.lab_sessions.id) AS session_id,
     MAX(CASE
         WHEN NOT ISNULL(cheesy_frc_hours.lab_sessions.time_in)
@@ -304,6 +319,7 @@ SELECT
 GROUP BY
     filtered_build_days.build_date,
     ordered_students.student_id,
+    ordered_students.join_date,
     ordered_students.sessions_attended_count,
     cheesy_frc_hours.optional_builds.date,
     cheesy_frc_hours.scheduled_build_days.date,
@@ -340,7 +356,8 @@ WITH build_info AS (
             WHEN (#{optional_build_case("build_days.build_date")}) = 1 THEN 0
             ELSE 1
         END AS required,
-        MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused
+        MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused,
+        #{not_yet_joined_case("build_days.build_date", "students.join_date")} AS not_yet_joined
     FROM
         build_days CROSS JOIN cheesy_frc_hours.students
         LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=build_days.build_date
@@ -355,6 +372,7 @@ WITH build_info AS (
         GROUP BY
             build_days.build_date,
             students.id,
+            students.join_date,
             cheesy_frc_hours.optional_builds.date,
             cheesy_frc_hours.scheduled_build_days.date,
             cheesy_frc_hours.scheduled_build_days.optional,
@@ -364,9 +382,9 @@ WITH build_info AS (
         ORDER BY build_date ASC
 ), student_build_info AS (
     SELECT
-        COUNT(IF(finalized AND required AND (NOT excused OR (excused AND attended)), 1, NULL)) AS required_count,
-        COUNT(IF(finalized AND attended AND required, 1, NULL)) AS required_attended_count,
-        COUNT(IF(attended, 1, NULL)) AS total_attended_count,
+        COUNT(IF(NOT not_yet_joined AND finalized AND required AND (NOT excused OR (excused AND attended)), 1, NULL)) AS required_count,
+        COUNT(IF(NOT not_yet_joined AND finalized AND attended AND required, 1, NULL)) AS required_attended_count,
+        COUNT(IF(NOT not_yet_joined AND attended, 1, NULL)) AS total_attended_count,
         student_id
     FROM build_info
     GROUP BY student_id
@@ -410,7 +428,8 @@ WITH build_info AS (
             WHEN (#{optional_build_case("filtered_build_days.build_date")}) = 1 THEN 0
             ELSE 1
         END AS required,
-        MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused
+        MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused,
+        #{not_yet_joined_case("filtered_build_days.build_date", "students.join_date")} AS not_yet_joined
     FROM
         filtered_build_days CROSS JOIN cheesy_frc_hours.students
         LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=filtered_build_days.build_date
@@ -425,6 +444,7 @@ WITH build_info AS (
         GROUP BY
             filtered_build_days.build_date,
             students.id,
+            students.join_date,
             cheesy_frc_hours.optional_builds.date,
             cheesy_frc_hours.scheduled_build_days.date,
             cheesy_frc_hours.scheduled_build_days.optional,
@@ -434,10 +454,10 @@ WITH build_info AS (
         ORDER BY build_date ASC
 ), student_build_info AS (
     SELECT
-        COUNT(IF(finalized AND required AND (NOT excused OR (excused AND attended)), 1, NULL)) AS required_count,
-        COUNT(IF(finalized AND attended AND required, 1, NULL)) AS required_attended_count,
-        COUNT(IF(attended, 1, NULL)) AS total_attended_count,
-        COUNT(IF(finalized AND required AND NOT attended AND NOT excused, 1, NULL)) AS unexcused_count,
+        COUNT(IF(NOT not_yet_joined AND finalized AND required AND (NOT excused OR (excused AND attended)), 1, NULL)) AS required_count,
+        COUNT(IF(NOT not_yet_joined AND finalized AND attended AND required, 1, NULL)) AS required_attended_count,
+        COUNT(IF(NOT not_yet_joined AND attended, 1, NULL)) AS total_attended_count,
+        COUNT(IF(NOT not_yet_joined AND finalized AND required AND NOT attended AND NOT excused, 1, NULL)) AS unexcused_count,
         student_id
     FROM build_info
     GROUP BY student_id
@@ -472,7 +492,8 @@ WITH build_info AS (
             WHEN (#{optional_build_case("filtered_build_days.build_date")}) = 1 THEN 0
             ELSE 1
         END AS required,
-        MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused
+        MAX(NOT ISNULL(cheesy_frc_hours.excused_sessions.date)) AS excused,
+        #{not_yet_joined_case("filtered_build_days.build_date", "students.join_date")} AS not_yet_joined
     FROM
         filtered_build_days
         LEFT JOIN cheesy_frc_hours.optional_builds ON cheesy_frc_hours.optional_builds.date=filtered_build_days.build_date
@@ -484,8 +505,10 @@ WITH build_info AS (
             AND NOT cheesy_frc_hours.lab_sessions.excluded_from_total
         LEFT JOIN cheesy_frc_hours.excused_sessions ON cheesy_frc_hours.excused_sessions.student_id = ?
             AND cheesy_frc_hours.excused_sessions.date=filtered_build_days.build_date
+        LEFT JOIN cheesy_frc_hours.students ON students.id = ?
         GROUP BY
             filtered_build_days.build_date,
+            students.join_date,
             cheesy_frc_hours.optional_builds.date,
             cheesy_frc_hours.scheduled_build_days.date,
             cheesy_frc_hours.scheduled_build_days.optional,
@@ -495,10 +518,10 @@ WITH build_info AS (
     ORDER BY build_date ASC
 ), attendance_summary AS (
     SELECT
-        COUNT(IF(finalized AND required AND (NOT excused OR (excused AND attended)), 1, NULL)) AS required_count,
-        COUNT(IF(finalized AND attended AND required, 1, NULL)) AS required_attended_count,
-        COUNT(IF(attended, 1, NULL)) AS total_attended_count,
-        COUNT(IF(finalized AND required AND NOT attended AND NOT excused, 1, NULL)) AS unexcused_count
+        COUNT(IF(NOT not_yet_joined AND finalized AND required AND (NOT excused OR (excused AND attended)), 1, NULL)) AS required_count,
+        COUNT(IF(NOT not_yet_joined AND finalized AND attended AND required, 1, NULL)) AS required_attended_count,
+        COUNT(IF(NOT not_yet_joined AND attended, 1, NULL)) AS total_attended_count,
+        COUNT(IF(NOT not_yet_joined AND finalized AND required AND NOT attended AND NOT excused, 1, NULL)) AS unexcused_count
     FROM build_info
 )
 

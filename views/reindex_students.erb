@@ -29,12 +29,13 @@
   <% unless @reindex_preview[:added_students].empty? %>
     <h3>Students to Add</h3>
     <table class="table table-striped table-bordered table-condensed" style="max-width: 800px;">
-      <thead><tr><th>ID</th><th>Name</th></tr></thead>
+      <thead><tr><th>ID</th><th>Name</th><th>Join Date</th></tr></thead>
       <tbody>
         <% @reindex_preview[:added_students].each do |student| %>
           <tr>
             <td><%= student[:id] %></td>
             <td><%= Rack::Utils.escape_html("#{student[:first_name]} #{student[:last_name]}") %></td>
+            <td><%= student[:join_date] %></td>
           </tr>
         <% end %>
       </tbody>
@@ -42,15 +43,17 @@
   <% end %>
 
   <% unless @reindex_preview[:updated_students].empty? %>
-    <h3>Names to Update</h3>
+    <h3>Records to Update</h3>
     <table class="table table-striped table-bordered table-condensed" style="max-width: 800px;">
-      <thead><tr><th>ID</th><th>Current</th><th>From Members</th></tr></thead>
+      <thead><tr><th>ID</th><th>Current</th><th>From Members</th><th>Current Join Date</th><th>New Join Date</th></tr></thead>
       <tbody>
         <% @reindex_preview[:updated_students].each do |student| %>
           <tr>
             <td><%= student[:replacement][:id] %></td>
             <td><%= Rack::Utils.escape_html("#{student[:current][:first_name]} #{student[:current][:last_name]}") %></td>
             <td><%= Rack::Utils.escape_html("#{student[:replacement][:first_name]} #{student[:replacement][:last_name]}") %></td>
+            <td><%= student[:current][:join_date] %></td>
+            <td><%= student[:replacement][:join_date] %></td>
           </tr>
         <% end %>
       </tbody>
