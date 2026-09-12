@@ -5,7 +5,15 @@
     "db_database": "cheesy_frc_hours",
     "port": 9006,
     "automatic_signout_offset_hours": -2,
-    "program": "FRC"
+    "program": "",
+    "site_name": "hours"
+  },
+  "ftc": {
+    "db_database": "cheesy_ftc_hours",
+    "port": 9009,
+    "automatic_signout_offset_hours": -6,
+    "program": "FTC",
+    "site_name": "ftchours"
   },
   "dev": {
     "db_password": "correcthorsebatterystaple",
