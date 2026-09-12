@@ -1,18 +1,22 @@
 {
   "global": {
     "db_host": "localhost",
-    "db_user": "team254",
+    "db_user": "team254"
+  },
+  "frc": {
     "db_database": "cheesy_frc_hours",
     "port": 9006,
     "automatic_signout_offset_hours": -2,
-    "program": "",
+    "program": "FRC",
+    "site_title": "Cheesy Hours",
     "site_name": "hours"
   },
   "ftc": {
     "db_database": "cheesy_ftc_hours",
     "port": 9009,
-    "automatic_signout_offset_hours": -6,
+    "automatic_signout_offset_hours": -2,
     "program": "FTC",
+    "site_title": "Cheesy FTC Hours",
     "site_name": "ftchours"
   },
   "dev": {

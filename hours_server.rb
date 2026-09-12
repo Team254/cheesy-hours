@@ -6,7 +6,7 @@
 require "active_support"
 require "active_support/time"
 require "cgi"
-require "cheesy-common"
+require_relative "hours_config"
 require "csv"
 require "digest"
 require "pathological"
@@ -176,8 +176,8 @@ module CheesyHours
       end
 
       def reindex_students_program
-        CheesyCommon::Config.program
-      rescue CheesyCommon::Config::NoValueFoundError
+        CheesyHours::Config.program
+      rescue CheesyHours::Config::NoValueFoundError
         nil
       end
 
@@ -282,7 +282,7 @@ module CheesyHours
         if @user.nil?
           session[:user] = nil
           unless ["/", "/sms", "/signout_automatic"].include?(request.path)
-            redirect "#{CheesyCommon::Config.members_url}?site=#{CheesyCommon::Config.site_name}&path=#{request.path}"
+            redirect "#{CheesyHours::Config.members_url}?site=#{CheesyHours::Config.site_name}&path=#{request.path}"
           end
         else
           session[:user] = @user
@@ -292,7 +292,7 @@ module CheesyHours
 
     get "/logout" do
       session[:user] = nil
-      redirect "#{CheesyCommon::Config.members_url}/logout"
+      redirect "#{CheesyHours::Config.members_url}/logout"
     end
 
     get "/" do
@@ -418,7 +418,7 @@ module CheesyHours
       halt(400, "Invalid student.") if @student.nil?
 
       # Restrict sign-ins to the lab's IP address ranges.
-      ip_whitelist = CheesyCommon::Config.signin_ip_whitelist
+      ip_whitelist = CheesyHours::Config.signin_ip_whitelist
       real_ip = request.env["HTTP_X_REAL_IP"].to_s
       if !ip_whitelist.empty? && (real_ip.empty? || ip_whitelist.none? { |ip| real_ip.start_with?(ip) })
         halt(400, "Invalid IP address. Must sign in from the Robotics Lab.")
@@ -1313,7 +1313,7 @@ module CheesyHours
       end
 
       LabSession.where(:time_out => nil).each do |lab_session|
-        offset_hours = CheesyCommon::Config.automatic_signout_offset_hours
+        offset_hours = CheesyHours::Config.automatic_signout_offset_hours
         signout_time = (Time.now + offset_hours * 3600).utc
 
         lab_session.update(:time_out => signout_time, :mentor_name => "Automatic - Didn't Sign Out")

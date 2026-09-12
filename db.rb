@@ -3,7 +3,7 @@
 #
 # Sets up database connection.
 
-require "cheesy-common"
+require_relative "hours_config"
 
-DB = Sequel.mysql2({ :host => CheesyCommon::Config.db_host, :user => CheesyCommon::Config.db_user,
-	:password => CheesyCommon::Config.db_password, :database => CheesyCommon::Config.db_database })
+DB = Sequel.mysql2({ :host => CheesyHours::Config.db_host, :user => CheesyHours::Config.db_user,
+	:password => CheesyHours::Config.db_password, :database => CheesyHours::Config.db_database })

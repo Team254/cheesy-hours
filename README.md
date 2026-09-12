@@ -83,12 +83,20 @@ message. If this functionality clashes with your ID scheme, edit [students.rb](m
 
 ### Configuration changes
 #### config.json
-The environment-specific configurations (i.e. development vs. production) are stored in [config.json](config.json). You
-will likely need to update these fields:
+The environment-specific configurations (i.e. development vs. production) and program-specific configurations (FRC
+vs. FTC) are stored in [config.json](config.json). `TEAM254_ENV` selects the environment profile, while
+`HOURS_PROGRAM` selects either the `frc` or `ftc` program profile. `HOURS_PROGRAM` defaults to `FRC` when omitted.
+
+For production, keep `TEAM254_ENV=prod` for both services and set `HOURS_PROGRAM=FRC` or `HOURS_PROGRAM=FTC` in each
+service's environment. You will likely need to update these fields:
+
 1. `db_host`: the address to the MySql database
 1. `db_user`: the username of the database user
 1. `db_password`: the password of the database user (this can be in plaintext instead of the `Encrypted:` notation)
 1. `db_database`: the name of the database that was created for Cheesy Hours
+1. `port`: the application port for the selected program
+1. `program`: the program passed to the roster API
+1. `site_name`: the site identifier passed to the authentication service
 1. `signin_ip_whitelist`: a list of IP addresses to restrict signins to, to prevent students from signing in when away
 from the lab to pad their hours (or leaving this blank will disable this functionality)
 

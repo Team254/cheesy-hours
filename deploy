@@ -4,8 +4,9 @@ set -e
 USER=team254
 HOST=ec2.team254.com
 APP=cheesy-hours
+PROGRAM=FRC
 case "${1}" in
-  --ftc) APP=ftc-hours ;;
+  --ftc) APP=ftc-hours; PROGRAM=FTC ;;
   --frc|"") ;;
   *) echo "Usage: ./deploy [--frc|--ftc]" && exit 1 ;;
 esac
@@ -13,6 +14,6 @@ SCRIPT_NAME=hours_server
 
 echo "Deploying $APP..."
 echo
-ssh $USER@$HOST "cd /opt/sites/$APP && git pull && bundle install && bundle exec rake db:migrate && sudo -n /usr/bin/systemctl restart $APP.service"
+ssh $USER@$HOST "cd /opt/sites/$APP && git fetch && git checkout master && git pull --ff-only && bundle install && HOURS_PROGRAM=$PROGRAM bundle exec rake db:migrate && sudo -n /usr/bin/systemctl restart $APP.service"
 echo
 echo "Deployed $APP."
