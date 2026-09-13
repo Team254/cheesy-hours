@@ -34,7 +34,18 @@ module CheesyHours
         true
       end
     end
-    use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600
+    
+    rack_session_secret_var = {
+      "FRC" => "CHEESY_HOURS_RACK_SESSION_SECRET",
+      "FTC" => "FTC_HOURS_RACK_SESSION_SECRET"
+    }.fetch(Config.program)
+
+    rack_session_secret = ENV.fetch(rack_session_secret_var) do
+      raise KeyError, "Rack session secret is required in production." if ENV["RACK_ENV"] == "production"
+      SecureRandom.hex(128)
+    end
+
+    use Rack::Session::Cookie, :key => "rack.session", :expire_after => 3600, :secrets => rack_session_secret
 
     helpers do
       def user_time_zone
