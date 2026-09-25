@@ -1,5 +1,6 @@
 class Event < Sequel::Model
   one_to_many :event_check_ins
+  one_to_many :event_excusals
   many_to_many :students, join_table: :event_check_ins
 
   def self.open_on(date)

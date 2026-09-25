@@ -8,6 +8,7 @@ class Student < Sequel::Model
   one_to_many :lab_sessions
   one_to_many :excused_sessions
   one_to_many :event_check_ins
+  one_to_many :event_excusals
   many_to_many :events, join_table: :event_check_ins
 
   def self.get_by_id(id)

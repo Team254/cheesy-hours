@@ -44,20 +44,24 @@
       <tr>
         <th>Name</th>
         <th>Events Attended</th>
+        <th>Events Excused</th>
         <th>Events Missed</th>
       </tr>
     </thead>
     <tbody>
       <% @attendance_students.each do |student| %>
         <% attended_count = @attended_event_counts_by_student_id[student.id] %>
-        <tr class="<%= "error" if @reportable_event_count > 1 && attended_count.to_f / @reportable_event_count < 0.5 %>">
+        <% excused_count = @excused_event_counts_by_student_id[student.id] %>
+        <% required_event_count = @reportable_event_count - excused_count %>
+        <tr class="<%= "error" if required_event_count > 1 && attended_count.to_f / required_event_count < 0.5 %>">
           <td><a href="/students/<%= student.id %>"><%= Rack::Utils.escape_html("#{student.first_name} #{student.last_name}") %></a></td>
           <td><%= attended_count %></td>
-          <td><%= @reportable_event_count - attended_count %></td>
+          <td><%= excused_count %></td>
+          <td><%= required_event_count - attended_count %></td>
         </tr>
       <% end %>
       <% if @attendance_students.empty? %>
-        <tr><td colspan="3">No students are on the Hours roster.</td></tr>
+        <tr><td colspan="4">No students are on the Hours roster.</td></tr>
       <% end %>
     </tbody>
   </table>

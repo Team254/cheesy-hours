@@ -275,6 +275,16 @@ module CheesyHours
       rescue ArgumentError
         halt(400, "Invalid event.")
       end
+
+      def excused_absence_counts_by_student_id(event_ids)
+        counts = Hash.new(0)
+        return counts if event_ids.empty?
+        checked_in_pairs = EventCheckIn.where(:event_id => event_ids).select_map([:event_id, :student_id]).to_set
+        EventExcusal.where(:event_id => event_ids).select_map([:event_id, :student_id]).each do |event_id, student_id|
+          counts[student_id] += 1 unless checked_in_pairs.include?([event_id, student_id])
+        end
+        counts
+      end
     end
     # Enforce authentication for all non-public routes.
     before do
@@ -351,6 +361,7 @@ module CheesyHours
                                                  counts[check_in.student_id] += 1
                                                end
                                              end
+      @excused_event_counts_by_student_id = excused_absence_counts_by_student_id(reportable_event_ids)
       @reportable_event_count = reportable_event_ids.length
       erb :events
     end
@@ -375,7 +386,7 @@ module CheesyHours
     get "/events/report.csv" do
       require_event_admin
       content_type "text/csv"
-      rows = [["Last Name", "First Name", "Student ID", "Events Attended", "Events Missed"]]
+      rows = [["Last Name", "First Name", "Student ID", "Events Attended", "Events Excused", "Events Missed"]]
       today = user_time_zone.now.to_date
       event_ids = Event.all.select { |event| event.date < today || (event.date == today && !event.open?) }.map(&:id)
       students = Student.order(:last_name, :first_name).all
@@ -386,9 +397,12 @@ module CheesyHours
                             counts[check_in.student_id] += 1
                           end
                         end
+      excused_counts = excused_absence_counts_by_student_id(event_ids)
       students.each do |student|
         attended_count = attended_counts[student.id]
-        rows << [student.last_name, student.first_name, student.id, attended_count, event_ids.length - attended_count]
+        excused_count = excused_counts[student.id]
+        rows << [student.last_name, student.first_name, student.id, attended_count, excused_count,
+                 event_ids.length - attended_count - excused_count]
       end
       CSV.generate { |csv| rows.each { |row| csv << row } }
     end
@@ -414,7 +428,26 @@ module CheesyHours
       @check_ins_by_student_id = @event.event_check_ins.each_with_object({}) do |check_in, check_ins|
         check_ins[check_in.student_id] = check_in
       end
+      @excused_student_ids = @event.event_excusals.map(&:student_id).to_set
       erb :event
+    end
+
+    post "/events/:id/excusals" do
+      require_event_admin
+      event = event_from_params
+      student = Student[params[:student_id]]
+      halt(400, "Invalid student.") if student.nil?
+      EventExcusal.find_or_create(:event_id => event.id, :student_id => student.id)
+      redirect "/events/#{event.id}"
+    rescue Sequel::UniqueConstraintViolation
+      redirect "/events/#{event.id}"
+    end
+
+    post "/events/:id/excusals/:student_id/delete" do
+      require_event_admin
+      event = event_from_params
+      EventExcusal.where(:event_id => event.id, :student_id => params[:student_id]).delete
+      redirect "/events/#{event.id}"
     end
 
     post "/events/:id/close" do
@@ -911,7 +944,8 @@ module CheesyHours
                                                    .all
                                                    .each_with_object({}) { |check_in, rows| rows[check_in.event_id] = check_in }
                                      end
-      
+      @excused_event_ids = @student.event_excusals.map(&:event_id).to_set
+
       erb :my_attendance
     end
     get "/students/:id" do
@@ -924,6 +958,7 @@ module CheesyHours
       @event_check_ins_by_event_id = @student.event_check_ins.each_with_object({}) do |check_in, rows|
         rows[check_in.event_id] = check_in
       end
+      @excused_event_ids = @student.event_excusals.map(&:event_id).to_set
       erb :student
     end
 
