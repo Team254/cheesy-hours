@@ -18,27 +18,38 @@
 <div class="container container-wide">
    <div style="display: flex; align-items: flex-start; flex-direction: column; gap: 0.5rem">
    <h2 style="margin-bottom: 0;">Calendar</h2>
-   <form action="/calendar" method="get" style="display: inline-flex; flex-direction: column; align-items: flex-start; gap: 0.35rem;">
-      <label for="semester-select" style="margin: 0;">Semester</label>
-      <select id="semester-select" name="semester" style="margin: 0;">
-         <option value="fall" <%= "selected" if @semester == "fall" %>>Fall (Aug-Dec)</option>
-         <option value="spring" <%= "selected" if @semester == "spring" %>>Spring (Jan-May)</option>
-         <option value="summer" <%= "selected" if @semester == "summer" %>>Summer (Jun-Jul)</option>
-      </select>
-      <label for="semester-year" style="margin: 0;">Year</label>
-      <input id="semester-year" name="year" type="number" value="<%= @semester_year %>" min="2000" max="2100" style="width: 6rem; margin: 0;" />
-      <label style="margin: 0;">
-         <input type="checkbox" name="hide_optional" value="1" <%= "checked" if @hide_optional %> />
-         Hide optional builds
-      </label>
-      <label style="margin: 0;">
-         <input type="checkbox" name="show_future_builds" value="1" <%= "checked" if show_future_builds %> />
-         Show all future builds
-      </label>
+   <form action="/calendar" method="get" style="display: inline-flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; margin: 0;">
+      <div style="display: flex; align-items: center; gap: 1rem;">
+         <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <label for="semester-select" style="margin: 0;">Semester</label>
+            <select id="semester-select" name="semester" style="margin: 0;">
+               <option value="fall" <%= "selected" if @semester == "fall" %>>Fall (Aug-Dec)</option>
+               <option value="spring" <%= "selected" if @semester == "spring" %>>Spring (Jan-May)</option>
+               <option value="summer" <%= "selected" if @semester == "summer" %>>Summer (Jun-Jul)</option>
+            </select>
+         </div>
+         <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <label for="semester-year" style="margin: 0;">Year</label>
+            <input id="semester-year" name="year" type="number" value="<%= @semester_year %>" min="2000" max="2100" style="width: 6rem; margin: 0;" />
+         </div>
+      </div>
+      <div style="display: flex; gap: 1rem;">
+         <label style="display: flex; align-items: center; gap: 0.3rem; margin: 0;">
+            <input type="checkbox" name="hide_optional" value="1" <%= "checked" if @hide_optional %> style="margin: 0;" />
+            Hide optional builds
+         </label>
+         <label style="display: flex; align-items: center; gap: 0.3rem; margin: 0;">
+            <input type="checkbox" name="show_future_builds" value="1" <%= "checked" if show_future_builds %> style="margin: 0;" />
+            Show all future builds
+         </label>
+      </div>
       <button type="submit" class="btn btn-small">Apply</button>
       <small>Range: <%= semester_name %> <%= @semester_year %> (<%= @semester_start.strftime("%b %-d") %> - <%= calendar_end.strftime("%b %-d") %>)</small>
    </form>
-   <details class="" style="margin-top: -1.0rem; margin-bottom: 0.35rem;">
+   <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+   <input id="student-name-filter" type="search" placeholder="Search students by name" aria-label="Search students by name" style="margin: 0;" />
+   <div style="display: flex; align-items: stretch;">
+   <details class="" style="display: flex; flex-direction: column; justify-content: center;">
       <summary style="list-style: none">Legend</summary>
    </details>
    <table style="border: 1px solid #000; height: 38px; border-left: none; border-top-right-radius: 4px; border-bottom-right-radius: 4px;">
@@ -50,17 +61,46 @@
             <th style="width:70px; height:34px; text-align: center; background-color: var(--excused-color)">Optional</th>
             <th class="stripe-bg" style="width:70px; height:34px; --color-a: var(--excused-color); --color-b: var(--partial-color); text-align: center;">Excused</th>
             <th style="width:70px; height:34px; text-align: center; background-color: var(--scheduled-color); color: White">Scheduled</th>
-            <th class="stripe-bg" style="width:90px; height:34px; --color-a: var(--scheduled-color); --color-b: #657086; text-align: center; color: White;">Future excused</th>
+            <th class="stripe-bg" style="width:120px; height:34px; white-space: nowrap; --color-a: var(--scheduled-color); --color-b: #657086; text-align: center; color: White;">Future excused</th>
             <th class="cross-bg" style="width:70px; height:34px; --color-a: #ffffff; --color-b: var(--not-yet-joined-color); text-align: center; border-top-right-radius: 4px; border-bottom-right-radius: 4px;">N/A</th>
          </tr>
       </thead>
    </table>
    </div>
-      <div id="calendar-sticky-gap"></div>
-      <div class="cheesy-row" style="clear: right">
-        <div class="column2">
+   </div>
+   </div>
+      <div id="calendar-scroll-box">
+      <div id="calendar-scroll-content">
+      <div id="calendar-names-column">
+            <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed student-table">
+              <thead>
+                <tr>
+                  <th style="width:90px; height:45px; text-align: center">Builds Attended</th>
+                  <th style="width:105px; height:45px; text-align: center">Attendance Rate</th>
+                  <th style="width:85px; height:45px; text-align: center">Student ID</th>
+                  <th style="width:250px; height:45px; text-align: center">Name (Unexcused)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% student_info_rows.each do |row|
+                  student = Student[row[:student_id]]
+                  %>
+                  <tr style="width: 530px" data-student-id="<%= student.id %>">
+                     <td style="width:90px; height:30px;"><%=row[:total_attended_count]%></td>
+                     <td style ="width:105px; height: 30px"><%=(100 * row[:required_attended_count].to_f/row[:required_count]).to_i rescue "0"%>%</td>
+                     <td style="width:85px; height:30px;"><%=student.id%> </td>
+                     <td
+                        style="width:250px; height:30px; white-space: nowrap;"
+                        title="<%=student.first_name + " " + student.last_name%>"
+                     ><a href="/students/<%= student.id %>"><%= student.first_name %> <%= student.last_name %></a>
+                        <span title="Unexcused absences in range">(<%= row[:unexcused_count].to_i %>)</span></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+      </div>
+        <div id="calendar-dates-column">
          <div id="calendar-header-sticky">
-            <div id="calendar-header-scroll">
             <table style="table-layout: fixed; margin-bottom: 0px" class="table table-striped table-bordered table-condensed calendar-date-table" id="calendar-date-header">
                   <thead>
                      <tr>
@@ -104,12 +144,8 @@
                      </tr>
                   </thead>
             </table>
-            </div>
-            <div id="calendar-scroll-proxy" tabindex="0" role="region" aria-label="Scroll attendance dates horizontally" aria-controls="calendar-grid-scroll">
-               <div id="calendar-scroll-proxy-content"></div>
-            </div>
          </div>
-         <div id="calendar-grid-scroll" style="padding-bottom: 64px;">
+         <div>
             <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed column-based" id="color-grid">
                <% build_days.each do |build_day| %>
                   <tr>
@@ -142,9 +178,9 @@
                            </a>
                            <ul class="dropdown-menu">
                               <% if excused == 1 %>
-                              <li><a href="/students/<%=student_id%>/excusals/<%=build_date%>/delete">Unexcuse</a></li>
+                              <li><a class="calendar-unexcuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/excusals/<%=build_date%>/delete">Unexcuse</a></li>
                               <% else %>
-                              <li><a href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
+                              <li><a class="calendar-excuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
                               <% end %>
                            </ul>
                         </div>
@@ -176,7 +212,7 @@
                               <span class="caret"></span>
                            </a>
                            <ul class="dropdown-menu">
-                              <li><a href="/students/<%=student_id%>/excusals/<%=build_date%>/delete">Unexcuse</a></li>
+                              <li><a class="calendar-unexcuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/excusals/<%=build_date%>/delete">Unexcuse</a></li>
                            </ul>
                         </div>
                         <% end %>
@@ -219,7 +255,7 @@
                               <li><a href="/students/<%=student_id%>/new_lab_session?date=<%=build_date%>">Add Lab Session</a></li>
                               <% end %>
                               <% if @user.has_permission?("HOURS_EDIT") %>
-                              <li><a href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
+                              <li><a class="calendar-excuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
                               <% end %>
                               <% if session_id && @user.has_permission?("HOURS_DELETE") %>
                               <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
@@ -235,33 +271,8 @@
             </table>
          </div>
       </div>
-      <div class="column1">
-            <table style="table-layout: fixed;" class="table table-striped table-bordered table-condensed student-table">
-              <thead>
-                <tr>
-                  <th style="width:65px; height:45px; text-align: center">Builds Attended</th>
-                  <th style="width:80px; height:45px; text-align: center">Attendance Rate</th>
-                  <th style="width:65px; height:45px; text-align: center">Student ID</th>
-                  <th style="width:200px; height:45px; text-align: center">Name (Unexcused)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% student_info_rows.each do |row|
-                  student = Student[row[:student_id]]
-                  %>
-                  <tr style="width: 410px">
-                     <td style="width:65px; height:30px;"><%=row[:total_attended_count]%></td>
-                     <td style ="width:80px; height: 30px"><%=(100 * row[:required_attended_count].to_f/row[:required_count]).to_i rescue "0"%>%</td>
-                     <td style="width:65px; height:30px;"><%=student.id%> </td>
-                     <td
-                        style="width:200px; height:30px; white-space: nowrap;"
-                        title="<%=student.first_name + " " + student.last_name%>"
-                     ><a href="/students/<%= student.id %>"><%= student.first_name %> <%= student.last_name %></a>
-                        <span title="Unexcused absences in range">(<%= row[:unexcused_count].to_i %>)</span></td>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
+      </div>
+      </div>
             <div style="display: flex; gap: 1.5em">
                <% if @user.has_permission?("HOURS_VIEW_REPORT") %>
                   <h4><a href="/csv_attendance_report">Download CSV Report</a></h4>
@@ -270,53 +281,179 @@
                <h4><a href="/optionalize_past_offdays">Optionalize Past Off-days</a></h4>
                <% end %>
             </div>
-        </div>
 </div>
+<% if can_edit_hours %>
+<div id="excuse-modal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="excuse-modal-title" aria-hidden="true">
+   <form id="excuse-form" style="margin: 0;">
+      <div class="modal-header">
+         <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+         <h3 id="excuse-modal-title">Mark student excused</h3>
+      </div>
+      <div class="modal-body">
+         <p><strong id="excuse-student-name"></strong></p>
+         <label for="excuse-date">Date of Excusal</label>
+         <input id="excuse-date" type="date" name="date" required />
+         <p>An excused student will not be penalized for being absent.</p>
+         <div id="excuse-error" class="alert alert-error hide"></div>
+      </div>
+      <div class="modal-footer">
+         <button type="button" class="btn" data-dismiss="modal">Cancel</button>
+         <button id="excuse-save" type="submit" class="btn btn-success">Save</button>
+      </div>
+   </form>
+</div>
+<div id="unexcuse-modal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="unexcuse-modal-title" aria-hidden="true">
+   <form id="unexcuse-form" style="margin: 0;">
+      <div class="modal-header">
+         <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+         <h3 id="unexcuse-modal-title">Delete excusal</h3>
+      </div>
+      <div class="modal-body">
+         <p>Delete the excusal for <strong id="unexcuse-student-name"></strong> on <strong id="unexcuse-date"></strong>?</p>
+         <div id="unexcuse-error" class="alert alert-error hide"></div>
+      </div>
+      <div class="modal-footer">
+         <button type="button" class="btn" data-dismiss="modal">Cancel</button>
+         <button id="unexcuse-confirm" type="submit" class="btn btn-danger">Unexcuse</button>
+      </div>
+   </form>
+</div>
+<% end %>
 <script>
-    var $gridScroll = $('#calendar-grid-scroll');
-    var gridScroll = $gridScroll[0];
-    var $proxyScroll = $('#calendar-scroll-proxy');
-    var proxyScroll = $proxyScroll[0];
-    var proxyContent = $('#calendar-scroll-proxy-content')[0];
-    var $headerTable = $('#calendar-date-header');
+    var $calendarScrollBox = $('#calendar-scroll-box');
+    var calendarScrollBoxBottomGap = 16;
+    var calendarScrollBoxMinHeight = 320;
 
-    function maxCalendarScrollLeft() {
-        return Math.max(0, gridScroll.scrollWidth - gridScroll.clientWidth);
-    }
-
-    function applyCalendarScrollLeft(scrollLeft) {
-        scrollLeft = Math.max(0, Math.min(maxCalendarScrollLeft(), Math.round(scrollLeft)));
-        $headerTable.css('transform', 'translateX(' + (-scrollLeft) + 'px)');
-        if (gridScroll.scrollLeft !== scrollLeft) {
-            gridScroll.scrollLeft = scrollLeft;
-        }
-        if (proxyScroll.scrollLeft !== scrollLeft) {
-            proxyScroll.scrollLeft = scrollLeft;
-        }
-    }
-
-    gridScroll.addEventListener('scroll', function () {
-        applyCalendarScrollLeft(gridScroll.scrollLeft);
-    });
-    proxyScroll.addEventListener('scroll', function () {
-        applyCalendarScrollLeft(proxyScroll.scrollLeft);
-    });
-
-    function refreshCalendarScrollProxy() {
-        proxyContent.style.width = gridScroll.scrollWidth + 'px';
-        $proxyScroll.toggle(maxCalendarScrollLeft() > 0);
+    function fitCalendarScrollBoxToWindow() {
+        var spaceBelowBoxTop = window.innerHeight - $calendarScrollBox.offset().top - calendarScrollBoxBottomGap;
+        var horizontalScrollbarHeight = $calendarScrollBox.innerHeight() - $calendarScrollBox[0].clientHeight;
+        var visibleRowsBoxHeight = $('#calendar-scroll-content').outerHeight() + horizontalScrollbarHeight;
+        var windowFitHeight = Math.max(calendarScrollBoxMinHeight, spaceBelowBoxTop);
+        $calendarScrollBox.css('height', Math.min(visibleRowsBoxHeight, windowFitHeight) + 'px');
         document.documentElement.style.setProperty(
             '--calendar-header-block-height', $('#calendar-header-sticky').outerHeight() + 'px');
-        applyCalendarScrollLeft(gridScroll.scrollLeft);
     }
 
-    document.documentElement.classList.add('calendar-scroll-proxy-ready');
-    refreshCalendarScrollProxy();
-    applyCalendarScrollLeft($gridScroll.width() * 2);
+    fitCalendarScrollBoxToWindow();
+    $calendarScrollBox[0].scrollLeft = $calendarScrollBox[0].scrollWidth;
 
-    $(window).on('resize', refreshCalendarScrollProxy);
+    $(window).on('resize', fitCalendarScrollBoxToWindow);
 
-    $('#color-grid').children().children('tr:nth-last-child(2)').children().children().children(".dropdown-menu").addClass("pull-right")
-    $('#color-grid').children().children('tr:nth-last-child(1)').children().children().children(".dropdown-menu").addClass("pull-right")
+    function pullLastTwoDateMenusRight() {
+        $('#color-grid').children().children('tr:nth-last-child(2)').children().children().children(".dropdown-menu").addClass("pull-right")
+        $('#color-grid').children().children('tr:nth-last-child(1)').children().children().children(".dropdown-menu").addClass("pull-right")
+    }
+
+    pullLastTwoDateMenusRight();
+
+    function applyStudentNameFilter() {
+        var query = $.trim($('#student-name-filter').val()).toLowerCase();
+        var studentMatchesByIndex = $('.student-table tbody tr').map(function () {
+            var matches = query === '' || $(this).find('a').text().toLowerCase().indexOf(query) !== -1;
+            this.style.display = matches ? '' : 'none';
+            return matches;
+        }).get();
+        $('#color-grid tr').each(function () {
+            $(this).children('td').each(function (studentIndex) {
+                this.style.display = studentMatchesByIndex[studentIndex] === false ? 'none' : '';
+            });
+        });
+        fitCalendarScrollBoxToWindow();
+    }
+
+    $('#student-name-filter').on('input', applyStudentNameFilter);
+
+    function replaceCalendarAttendance(calendarHtml) {
+        var $updatedPage = $('<div>').append($.parseHTML(calendarHtml));
+        var $updatedGrid = $updatedPage.find('#color-grid');
+        var $updatedStudentTable = $updatedPage.find('.student-table');
+        if ($updatedGrid.length === 0 || $updatedStudentTable.length === 0) {
+            window.location.reload();
+            return;
+        }
+        $('#color-grid').replaceWith($updatedGrid);
+        $('.student-table').replaceWith($updatedStudentTable);
+        pullLastTwoDateMenusRight();
+        applyStudentNameFilter();
+    }
+
+    function studentNameForId(studentId) {
+        return $('.student-table tr[data-student-id="' + studentId + '"] a').text();
+    }
+
+    function submitCalendarChangeInModal(change) {
+        change.$submitButton.prop('disabled', true).text(change.pendingLabel);
+        $.post(change.url, $.extend({ referrer: window.location.pathname + window.location.search }, change.data))
+            .done(function (calendarHtml) {
+                replaceCalendarAttendance(calendarHtml);
+                change.$modal.modal('hide');
+            }).fail(function (xhr) {
+                var serverMessage = xhr.status < 500 ? xhr.responseText : '';
+                change.$error.text(serverMessage || change.fallbackErrorMessage).removeClass('hide');
+                change.$submitButton.prop('disabled', false).text(change.idleLabel);
+            });
+    }
+
+    var $excuseModal = $('#excuse-modal');
+    var $excuseSaveButton = $('#excuse-save');
+    var $excuseError = $('#excuse-error');
+    var excuseStudentId = null;
+
+    $(document).on('click', '.calendar-excuse-link', function (event) {
+        event.preventDefault();
+        var $link = $(this);
+        excuseStudentId = $link.attr('data-student-id');
+        $('#excuse-student-name').text(studentNameForId(excuseStudentId));
+        $('#excuse-date').val($link.attr('data-date'));
+        $excuseError.addClass('hide').text('');
+        $excuseSaveButton.prop('disabled', false).text('Save');
+        $excuseModal.modal('show');
+    });
+
+    $('#excuse-form').on('submit', function (event) {
+        event.preventDefault();
+        submitCalendarChangeInModal({
+            url: '/students/' + excuseStudentId + '/mark_excused',
+            data: { date: $('#excuse-date').val() },
+            $modal: $excuseModal,
+            $submitButton: $excuseSaveButton,
+            $error: $excuseError,
+            idleLabel: 'Save',
+            pendingLabel: 'Saving...',
+            fallbackErrorMessage: 'Could not save the excusal. The student may already be excused on that date.'
+        });
+    });
+
+    var $unexcuseModal = $('#unexcuse-modal');
+    var $unexcuseConfirmButton = $('#unexcuse-confirm');
+    var $unexcuseError = $('#unexcuse-error');
+    var unexcuseStudentId = null;
+    var unexcuseDate = null;
+
+    $(document).on('click', '.calendar-unexcuse-link', function (event) {
+        event.preventDefault();
+        var $link = $(this);
+        unexcuseStudentId = $link.attr('data-student-id');
+        unexcuseDate = $link.attr('data-date');
+        $('#unexcuse-student-name').text(studentNameForId(unexcuseStudentId));
+        $('#unexcuse-date').text(unexcuseDate);
+        $unexcuseError.addClass('hide').text('');
+        $unexcuseConfirmButton.prop('disabled', false).text('Unexcuse');
+        $unexcuseModal.modal('show');
+    });
+
+    $('#unexcuse-form').on('submit', function (event) {
+        event.preventDefault();
+        submitCalendarChangeInModal({
+            url: '/students/' + unexcuseStudentId + '/excusals/' + unexcuseDate + '/delete',
+            data: {},
+            $modal: $unexcuseModal,
+            $submitButton: $unexcuseConfirmButton,
+            $error: $unexcuseError,
+            idleLabel: 'Unexcuse',
+            pendingLabel: 'Removing...',
+            fallbackErrorMessage: 'Could not remove the excusal.'
+        });
+    });
 </script>
 <%= erb :footer %>
