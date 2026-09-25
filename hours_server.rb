@@ -7,6 +7,7 @@ require "active_support"
 require "active_support/time"
 require "cgi"
 require_relative "hours_config"
+require_relative "sms_webhook"
 require "csv"
 require "digest"
 require "pathological"
@@ -21,6 +22,8 @@ require "queries"
 
 module CheesyHours
   class Server < Sinatra::Base
+    set :sms_webhook, SmsWebhook.new
+
     RESET_ACTIVITY_TABLES = {
       :lab_sessions => ["Lab sessions", :time_in, :datetime],
       :excused_sessions => ["Excusals", :date, :date],
@@ -1123,25 +1126,31 @@ module CheesyHours
 
     # Receives all SMS messages via Twilio.
     post "/sms" do
+      halt(404) unless Config.program == "FRC"
+      halt(403, "Invalid Twilio request.") unless settings.sms_webhook.valid?(request)
+      sms_params = request.POST
       content_type "application/xml"
+      sms_response(sms_messages(sms_params))
+    end
 
+    def sms_messages(sms_params)
       # Retrieve the mentor record using the sender phone number.
-      phone_number = params[:From].gsub(/[^\d]/, "")[-10..-1]
-      mentor = Mentor.where(:phone_number => phone_number).first
-      halt(200, sms_response(["Error: Don't recognize sender's phone number."])) if mentor.nil?
+      phone_number = sms_params.fetch("From").gsub(/[^\d]/, "")[-10..-1]
+      mentor = phone_number && Mentor.where(:phone_number => phone_number).first
+      return ["Error: Don't recognize sender's phone number."] if mentor.nil?
 
       # First check for special control messages.
-      if params[:Body].strip.downcase == "gtfo"
+      if sms_params.fetch("Body").strip.downcase == "gtfo"
         # Sign everyone out all at once.
         LabSession.where(:time_out => nil).each do |lab_session|
           lab_session.update(:time_out => Time.now.utc, :mentor => mentor)
         end
-        halt(200, sms_response(["All students signed out."]))
+        return ["All students signed out."]
       end
 
       # Next, check for multiple IDs in the message.
-      ids = params[:Body].strip.split(" ")
-      messages = ids.map do |id|
+      ids = sms_params.fetch("Body").strip.split(" ")
+      ids.map do |id|
         # Retrieve the student record using the body of the message.
         student = Student.get_by_id(id)
         if student.nil?
@@ -1158,7 +1167,6 @@ module CheesyHours
           end
         end
       end
-      halt(200, sms_response(messages))
     end
 
     get "/reindex_students" do

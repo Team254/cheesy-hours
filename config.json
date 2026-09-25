@@ -25,6 +25,7 @@
     "signin_ip_whitelist": []
   },
   "prod": {
+    "twilio_auth_token": "Encrypted:7J/9ghve47PUTLhbnA0ZjTPKt+oZ3xW5LJ35vtG4UfV4q5NVGQH6C9Z9xSMveGUE",
     "db_password": "Encrypted:0iYLP6HuJ7qY1/BtUYAQ+Q==\n",
     "members_url": "https://members.team254.com",
     "signin_ip_whitelist": ["64.62.178.135", "40.133.254.5", "64.62.178.156", "64.62.178.158"]
