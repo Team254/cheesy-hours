@@ -15,7 +15,7 @@
     </div>
   <% end %>
 
-  <form action="/reset_hours" method="GET" class="form-inline">
+  <form id="cutoff-form" action="/reset_hours" method="GET" class="form-inline">
     <label for="cutoff-date"><strong>Delete records before</strong></label>
     <input id="cutoff-date" type="date" name="cutoff_date" value="<%= @cutoff_date.iso8601 %>" required />
     <button type="submit" class="btn">Preview Reset</button>
@@ -64,6 +64,7 @@
       />
       <div>
         <button
+          id="reset-confirm-button"
           type="submit"
           class="btn btn-danger"
           onclick="return confirm('Permanently delete all previewed attendance data before the cutoff?');"
@@ -72,5 +73,28 @@
     </form>
   <% end %>
 </div>
+
+<script>
+    var previewedCutoffDate = '<%= @cutoff_date.iso8601 %>';
+    var $cutoffInput = $('#cutoff-date');
+    var $confirmButton = $('#reset-confirm-button');
+
+    function cutoffInputMatchesPreview() {
+        return $cutoffInput.val() === previewedCutoffDate;
+    }
+
+    function refreshConfirmAvailability() {
+        $confirmButton.prop('disabled', !cutoffInputMatchesPreview());
+    }
+
+    $cutoffInput.on('change', function () {
+        if ($cutoffInput.val() && !cutoffInputMatchesPreview()) {
+            $('#cutoff-form').submit();
+        }
+    });
+
+    $cutoffInput.on('input', refreshConfirmAvailability);
+    refreshConfirmAvailability();
+</script>
 
 <%= erb :footer %>
