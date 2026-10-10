@@ -285,6 +285,21 @@ module CheesyHours
         end
         counts
       end
+
+      def parse_excusal_date_range
+        start_date = parse_build_date(params[:date])
+        end_date = parse_build_date(params[:end_date])
+        halt(400, "The end date is before the start date.") if end_date < start_date
+        [start_date, end_date]
+      end
+
+      def unexcused_required_build_dates(student, start_date, end_date)
+        excused_dates = ExcusedSession.where(:student_id => student.id, :date => start_date..end_date).select_map(:date).to_set
+        required_build_dates = DB.fetch(BUILD_DAYS_RANGE_QUERY, start_date.to_s, end_date.to_s, 1).map { |row| row[:build_date] }
+        required_build_dates.reject do |build_date|
+          excused_dates.include?(build_date) || (student.join_date && build_date <= student.join_date)
+        end
+      end
     end
     # Enforce authentication for all non-public routes.
     before do
@@ -979,8 +994,28 @@ module CheesyHours
       halt(400, "Missing date.") if params[:date].nil? || params[:date] == ""
       student = Student[params[:id]]
       halt(400, "Invalid student.") if student.nil?
-      halt_if_build_date_before_join_date(student, parse_build_date(params[:date]))
-      ExcusedSession.create(:date => params[:date], :student_id => params[:id])
+      if params[:end_date].to_s.empty?
+        halt_if_build_date_before_join_date(student, parse_build_date(params[:date]))
+        ExcusedSession.create(:date => params[:date], :student_id => params[:id])
+      else
+        start_date, end_date = parse_excusal_date_range
+        build_dates_to_excuse = unexcused_required_build_dates(student, start_date, end_date)
+        halt(400, "There are no unexcused required build days in that range.") if build_dates_to_excuse.empty?
+        DB.transaction do
+          build_dates_to_excuse.each { |build_date| ExcusedSession.create(:date => build_date, :student_id => student.id) }
+        end
+      end
+      redirect safe_referrer
+    end
+
+    post "/students/:id/excusals/delete_range" do
+      halt(403, "Insufficient permissions.") unless @user.has_permission?("HOURS_EDIT")
+      student = Student[params[:id]]
+      halt(400, "Invalid student.") if student.nil?
+      start_date, end_date = parse_excusal_date_range
+      excusals_in_range = ExcusedSession.where(:student_id => student.id, :date => start_date..end_date)
+      halt(400, "There are no excusals in that range.") if excusals_in_range.empty?
+      excusals_in_range.delete
       redirect safe_referrer
     end
 

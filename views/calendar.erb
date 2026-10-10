@@ -161,15 +161,17 @@
                    <% excused = row[:excused] %>
                    <% signed_in = row[:signed_in] %>
                    <% not_yet_joined = row[:not_yet_joined] %>
+                   <% excusable = required == 1 && excused != 1 && not_yet_joined != 1 %>
+                   <% cell_selection_attributes = %(data-student-id="#{student_id}" data-date="#{build_date}" data-excusable="#{excusable ? 1 : 0}" data-excused="#{excused == 1 ? 1 : 0}") %>
                   <% if not_yet_joined == 1 %>
-                     <td style="--color-a: #ffffff; --color-b: var(--not-yet-joined-color); min-width:50px; height:30px;" class="cross-bg" title="Not on the team yet"></td>
+                     <td <%= cell_selection_attributes %> style="--color-a: #ffffff; --color-b: var(--not-yet-joined-color); min-width:50px; height:30px;" class="cross-bg" title="Not on the team yet"></td>
                   <% elsif finalized == 0 %>
                      <% if signed_in == 1 %>
-                     <td style="background-color: var(--partial-color); min-width:50px; height:30px;" title="Currently signed in; attendance pending">
+                     <td <%= cell_selection_attributes %> style="background-color: var(--partial-color); min-width:50px; height:30px;" title="Currently signed in; attendance pending">
                      <% elsif excused == 1 && required == 1 %>
-                     <td style="--color-a: var(--scheduled-color); --color-b: #657086; min-width:50px; height:30px;" class="stripe-bg" title="Excused from scheduled build">
+                     <td <%= cell_selection_attributes %> style="--color-a: var(--scheduled-color); --color-b: #657086; min-width:50px; height:30px;" class="stripe-bg" title="Excused from scheduled build">
                      <% else %>
-                     <td style="background-color: var(--scheduled-color); min-width:50px; height:30px;" title="Scheduled; attendance pending">
+                     <td <%= cell_selection_attributes %> style="background-color: var(--scheduled-color); min-width:50px; height:30px;" title="Scheduled; attendance pending">
                      <% end %>
                         <% if required == 1 && can_edit_hours %>
                         <div class="btn-group visible-if-parent-hover">
@@ -187,7 +189,7 @@
                         <% end %>
                      </td>
                   <% elsif (attended == 1) %>
-                     <td style="background-color: var(--present-color); min-width:50px; height:30px;">
+                     <td <%= cell_selection_attributes %> style="background-color: var(--present-color); min-width:50px; height:30px;">
                         <% if @user.has_permission?("HOURS_EDIT") || @user.has_permission?("HOURS_DELETE") %>
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn btn-small dropdown-toggle" data-toggle="dropdown" href="#">
@@ -205,7 +207,7 @@
                         <% end %>
                      </td>
                   <% elsif (excused == 1 && required == 1) %>
-                     <td style="--color-a: var(--excused-color); --color-b: var(--partial-color); min-width:50px; height:30px;" class="stripe-bg">
+                     <td <%= cell_selection_attributes %> style="--color-a: var(--excused-color); --color-b: var(--partial-color); min-width:50px; height:30px;" class="stripe-bg">
                         <% if @user.has_permission?("HOURS_EDIT") %>
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn btn-small dropdown-toggle" data-toggle="dropdown" href="#">
@@ -218,7 +220,7 @@
                         <% end %>
                      </td>
                   <% elsif (!(required == 1)) %>
-                     <td style="background-color: var(--excused-color); min-width:50px; height:30px;">
+                     <td <%= cell_selection_attributes %> style="background-color: var(--excused-color); min-width:50px; height:30px;">
                         <% if @user.has_permission?("HOURS_EDIT") || (session_id && @user.has_permission?("HOURS_DELETE")) %>
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn btn-small dropdown-toggle" data-toggle="dropdown" href="#">
@@ -240,7 +242,7 @@
                         <% end %>
                      </td>
                   <% else %>
-                     <td style="background-color: <%= session_id ? "var(--partial-color)" : "var(--missing-color)" %>; min-width:50px; height:30px;">
+                     <td <%= cell_selection_attributes %> style="background-color: <%= session_id ? "var(--partial-color)" : "var(--missing-color)" %>; min-width:50px; height:30px;">
                         <% if @user.has_permission?("HOURS_EDIT") || (session_id && @user.has_permission?("HOURS_DELETE")) %>
                         <div class="btn-group visible-if-parent-hover">
                            <a class="btn btn-small dropdown-toggle" data-toggle="dropdown" href="#">
@@ -293,6 +295,9 @@
          <p><strong id="excuse-student-name"></strong></p>
          <label for="excuse-date">Date of Excusal</label>
          <input id="excuse-date" type="date" name="date" required />
+         <label for="excuse-end-date">Through (optional)</label>
+         <input id="excuse-end-date" type="date" name="end_date" />
+         <span class="help-block">With an end date, every required build day in the range is excused.</span>
          <p>An excused student will not be penalized for being absent.</p>
          <div id="excuse-error" class="alert alert-error hide"></div>
       </div>
@@ -309,7 +314,7 @@
          <h3 id="unexcuse-modal-title">Delete excusal</h3>
       </div>
       <div class="modal-body">
-         <p>Delete the excusal for <strong id="unexcuse-student-name"></strong> on <strong id="unexcuse-date"></strong>?</p>
+         <p id="unexcuse-summary"></p>
          <div id="unexcuse-error" class="alert alert-error hide"></div>
       </div>
       <div class="modal-footer">
@@ -319,6 +324,7 @@
    </form>
 </div>
 <% end %>
+<ul id="calendar-context-menu" class="dropdown-menu"></ul>
 <script>
     var $calendarScrollBox = $('#calendar-scroll-box');
     var calendarScrollBoxBottomGap = 16;
@@ -375,6 +381,7 @@
         $('.student-table').replaceWith($updatedStudentTable);
         pullLastTwoDateMenusRight();
         applyStudentNameFilter();
+        clearCalendarSelection();
     }
 
     function studentNameForId(studentId) {
@@ -399,22 +406,32 @@
     var $excuseError = $('#excuse-error');
     var excuseStudentId = null;
 
-    $(document).on('click', '.calendar-excuse-link', function (event) {
-        event.preventDefault();
-        var $link = $(this);
-        excuseStudentId = $link.attr('data-student-id');
-        $('#excuse-student-name').text(studentNameForId(excuseStudentId));
-        $('#excuse-date').val($link.attr('data-date'));
+    function openExcuseModal(studentId, startDate, endDate) {
+        excuseStudentId = studentId;
+        $('#excuse-student-name').text(studentNameForId(studentId));
+        $('#excuse-date').val(startDate);
+        $('#excuse-end-date').val(endDate || '');
         $excuseError.addClass('hide').text('');
         $excuseSaveButton.prop('disabled', false).text('Save');
         $excuseModal.modal('show');
+    }
+
+    $(document).on('click', '.calendar-excuse-link', function (event) {
+        event.preventDefault();
+        openExcuseModal($(this).attr('data-student-id'), $(this).attr('data-date'), null);
     });
 
     $('#excuse-form').on('submit', function (event) {
         event.preventDefault();
+        var startDate = $('#excuse-date').val();
+        var endDate = $('#excuse-end-date').val();
+        var excusalData = { date: startDate };
+        if (endDate && endDate !== startDate) {
+            excusalData.end_date = endDate;
+        }
         submitCalendarChangeInModal({
             url: '/students/' + excuseStudentId + '/mark_excused',
-            data: { date: $('#excuse-date').val() },
+            data: excusalData,
             $modal: $excuseModal,
             $submitButton: $excuseSaveButton,
             $error: $excuseError,
@@ -428,25 +445,39 @@
     var $unexcuseConfirmButton = $('#unexcuse-confirm');
     var $unexcuseError = $('#unexcuse-error');
     var unexcuseStudentId = null;
-    var unexcuseDate = null;
+    var unexcuseStartDate = null;
+    var unexcuseEndDate = null;
 
-    $(document).on('click', '.calendar-unexcuse-link', function (event) {
-        event.preventDefault();
-        var $link = $(this);
-        unexcuseStudentId = $link.attr('data-student-id');
-        unexcuseDate = $link.attr('data-date');
-        $('#unexcuse-student-name').text(studentNameForId(unexcuseStudentId));
-        $('#unexcuse-date').text(unexcuseDate);
+    function openUnexcuseModal(studentId, startDate, endDate, excusalCount) {
+        unexcuseStudentId = studentId;
+        unexcuseStartDate = startDate;
+        unexcuseEndDate = endDate;
+        var $studentName = $('<strong>').text(studentNameForId(studentId));
+        var $summary = $('#unexcuse-summary').empty();
+        if (endDate) {
+            $summary.append('Delete ' + excusalCount + (excusalCount === 1 ? ' excusal' : ' excusals') + ' for ',
+                $studentName, ' from ', $('<strong>').text(startDate), ' through ', $('<strong>').text(endDate), '?');
+        } else {
+            $summary.append('Delete the excusal for ', $studentName, ' on ', $('<strong>').text(startDate), '?');
+        }
         $unexcuseError.addClass('hide').text('');
         $unexcuseConfirmButton.prop('disabled', false).text('Unexcuse');
         $unexcuseModal.modal('show');
+    }
+
+    $(document).on('click', '.calendar-unexcuse-link', function (event) {
+        event.preventDefault();
+        openUnexcuseModal($(this).attr('data-student-id'), $(this).attr('data-date'), null, 1);
     });
 
     $('#unexcuse-form').on('submit', function (event) {
         event.preventDefault();
+        var isRange = unexcuseEndDate !== null;
         submitCalendarChangeInModal({
-            url: '/students/' + unexcuseStudentId + '/excusals/' + unexcuseDate + '/delete',
-            data: {},
+            url: isRange
+                ? '/students/' + unexcuseStudentId + '/excusals/delete_range'
+                : '/students/' + unexcuseStudentId + '/excusals/' + unexcuseStartDate + '/delete',
+            data: isRange ? { date: unexcuseStartDate, end_date: unexcuseEndDate } : {},
             $modal: $unexcuseModal,
             $submitButton: $unexcuseConfirmButton,
             $error: $unexcuseError,
@@ -455,5 +486,154 @@
             fallbackErrorMessage: 'Could not remove the excusal.'
         });
     });
+
+    var canEditHours = <%= can_edit_hours ? "true" : "false" %>;
+    var $calendarContextMenu = $('#calendar-context-menu');
+    var calendarSelection = null;
+
+    function calendarSelectionBounds() {
+        var anchorDate = calendarSelection.anchorDate;
+        var focusDate = calendarSelection.focusDate;
+        return anchorDate <= focusDate
+            ? { firstDate: anchorDate, lastDate: focusDate }
+            : { firstDate: focusDate, lastDate: anchorDate };
+    }
+
+    function selectedCalendarCells() {
+        if (calendarSelection === null) {
+            return $();
+        }
+        var bounds = calendarSelectionBounds();
+        return $('#color-grid td[data-student-id="' + calendarSelection.studentId + '"]').filter(function () {
+            var date = $(this).attr('data-date');
+            return date >= bounds.firstDate && date <= bounds.lastDate;
+        });
+    }
+
+    function highlightCalendarSelection() {
+        $('#color-grid td.calendar-cell-selected').removeClass('calendar-cell-selected');
+        selectedCalendarCells().addClass('calendar-cell-selected');
+    }
+
+    function selectSingleCalendarCell($cell) {
+        var date = $cell.attr('data-date');
+        calendarSelection = { studentId: $cell.attr('data-student-id'), anchorDate: date, focusDate: date };
+        highlightCalendarSelection();
+    }
+
+    function clearCalendarSelection() {
+        calendarSelection = null;
+        highlightCalendarSelection();
+    }
+
+    function hideCalendarContextMenu() {
+        $calendarContextMenu.hide().empty();
+    }
+
+    function showCalendarContextMenu($items, clientX, clientY) {
+        $calendarContextMenu.empty().append($items).css({ left: 0, top: 0 }).show();
+        var left = Math.min(clientX, window.innerWidth - $calendarContextMenu.outerWidth() - 4);
+        var top = Math.min(clientY, window.innerHeight - $calendarContextMenu.outerHeight() - 4);
+        $calendarContextMenu.css({ left: Math.max(0, left), top: Math.max(0, top) });
+    }
+
+    function contextMenuItem(label, onChoose) {
+        return $('<li>').append($('<a href="#">').text(label).on('click', function (event) {
+            event.preventDefault();
+            onChoose();
+        }));
+    }
+
+    function buildDayCountLabel(count) {
+        return count + (count === 1 ? ' build day' : ' build days');
+    }
+
+    function rangeContextMenuItems() {
+        var $cells = selectedCalendarCells();
+        var excusableCount = $cells.filter('[data-excusable="1"]').length;
+        var excusedCount = $cells.filter('[data-excused="1"]').length;
+        var studentId = calendarSelection.studentId;
+        var bounds = calendarSelectionBounds();
+        var $items = $();
+        if (excusableCount > 0) {
+            $items = $items.add(contextMenuItem('Excuse ' + buildDayCountLabel(excusableCount), function () {
+                openExcuseModal(studentId, bounds.firstDate, bounds.lastDate);
+            }));
+        }
+        if (excusedCount > 0) {
+            $items = $items.add(contextMenuItem('Unexcuse ' + buildDayCountLabel(excusedCount), function () {
+                openUnexcuseModal(studentId, bounds.firstDate, bounds.lastDate, excusedCount);
+            }));
+        }
+        if ($items.length === 0) {
+            $items = $('<li class="disabled">').append($('<a href="#">').text('Nothing to excuse in this range')
+                .on('click', function (event) { event.preventDefault(); }));
+        }
+        return $items;
+    }
+
+    $(document).on('mousedown', '#color-grid td[data-student-id]', function (event) {
+        if (event.shiftKey) {
+            event.preventDefault();
+        }
+    });
+
+    $(document).on('click', '#color-grid td[data-student-id]', function (event) {
+        if (!canEditHours || $(event.target).closest('.dropdown-toggle, .dropdown-menu').length > 0) {
+            return;
+        }
+        var $cell = $(this);
+        var isOnlySelectedCell = $cell.hasClass('calendar-cell-selected') && selectedCalendarCells().length === 1;
+        if (event.shiftKey && calendarSelection !== null && calendarSelection.studentId === $cell.attr('data-student-id')) {
+            calendarSelection.focusDate = $cell.attr('data-date');
+            highlightCalendarSelection();
+        } else if (isOnlySelectedCell) {
+            clearCalendarSelection();
+        } else {
+            selectSingleCalendarCell($cell);
+        }
+    });
+
+    $(document).on('contextmenu', '#color-grid td[data-student-id]', function (event) {
+        var $cell = $(this);
+        var $items;
+        if (canEditHours && $cell.hasClass('calendar-cell-selected') && selectedCalendarCells().length > 1) {
+            $items = rangeContextMenuItems();
+        } else {
+            $items = $cell.find('.dropdown-menu').first().children('li').clone();
+            if ($items.length === 0) {
+                return;
+            }
+            if (canEditHours) {
+                selectSingleCalendarCell($cell);
+            }
+        }
+        event.preventDefault();
+        $('.btn-group.open').removeClass('open');
+        showCalendarContextMenu($items, event.clientX, event.clientY);
+    });
+
+    $(document).on('contextmenu', function (event) {
+        if (!event.isDefaultPrevented()) {
+            hideCalendarContextMenu();
+        }
+    });
+
+    $(document).on('click', function (event) {
+        hideCalendarContextMenu();
+        if ($(event.target).closest('#color-grid, #calendar-context-menu, .modal, .modal-backdrop').length === 0) {
+            clearCalendarSelection();
+        }
+    });
+
+    $(document).on('keydown', function (event) {
+        if (event.key === 'Escape') {
+            hideCalendarContextMenu();
+            clearCalendarSelection();
+        }
+    });
+
+    $calendarScrollBox.on('scroll', hideCalendarContextMenu);
+    $(window).on('resize blur', hideCalendarContextMenu);
 </script>
 <%= erb :footer %>
