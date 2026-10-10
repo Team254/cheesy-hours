@@ -197,7 +197,7 @@ module CheesyHours
 
       def reindex_students_preview
         program = reindex_students_program
-        members_students = CheesyCommon::Auth.find_users_with_permission("EVENTS_SIGNUP_EVENT", program: program).map do |student|
+        members_students = CheesyCommon::Auth.find_users_with_permission("HOURS_SIGN_IN", program: program).map do |student|
           name = Array(student.name)
           {
             :id => Integer(student.bcp_id.to_s, 10),
