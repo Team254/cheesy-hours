@@ -391,10 +391,16 @@
     function submitCalendarChangeInModal(change) {
         change.$submitButton.prop('disabled', true).text(change.pendingLabel);
         $.post(change.url, $.extend({ referrer: window.location.pathname + window.location.search }, change.data))
-            .done(function (calendarHtml) {
-                replaceCalendarAttendance(calendarHtml);
+            .done(function () {
                 change.$modal.modal('hide');
+                window.location.reload();
             }).fail(function (xhr) {
+                var redirectAfterSaveWasBlocked = xhr.status === 0;
+                if (redirectAfterSaveWasBlocked) {
+                    change.$modal.modal('hide');
+                    window.location.reload();
+                    return;
+                }
                 var serverMessage = xhr.status < 500 ? xhr.responseText : '';
                 change.$error.text(serverMessage || change.fallbackErrorMessage).removeClass('hide');
                 change.$submitButton.prop('disabled', false).text(change.idleLabel);
