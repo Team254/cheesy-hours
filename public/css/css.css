@@ -92,14 +92,6 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
     border-top: 1px solid #ddd;
 }
 
-.visible-if-parent-hover {
-    display: none;
-}
-
-:hover>.visible-if-parent-hover {
-    display: inherit;
-}
-
 .container.container-wide {
     width: 1200px;
 }
@@ -314,40 +306,6 @@ table.column-based tr:not(.row-based) th:not(.row-based) {
 
 #color-grid tr td:not(.row-based) {
     height: var(--calendar-row-height) !important;
-}
-
-#calendar-date-header .calendar-date-with-actions {
-    position: relative;
-}
-
-#calendar-date-header .calendar-date-actions {
-    display: inline-block;
-    opacity: 0;
-    pointer-events: none;
-    position: absolute;
-    top: 4px;
-    left: 4px;
-    text-align: left;
-}
-
-#calendar-date-header .calendar-date-actions .dropdown-toggle {
-    min-width: 0;
-    padding: 0 4px;
-    line-height: 16px;
-}
-
-#calendar-date-header .calendar-date-with-actions:hover .calendar-date-actions,
-#calendar-date-header .calendar-date-with-actions:focus-within .calendar-date-actions,
-#calendar-date-header .calendar-date-actions.open {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-@media (hover: none), (pointer: coarse) {
-    #calendar-date-header .calendar-date-actions {
-        opacity: 1;
-        pointer-events: auto;
-    }
 }
 
 #color-grid td[data-student-id] {

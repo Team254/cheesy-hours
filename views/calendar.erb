@@ -115,29 +115,19 @@
                                     <br><small style="font-size: 0.65em; line-height: 1; color: var(--scheduled-color);"><%= build_date[:starts_at].in_time_zone(USER_TIME_ZONE).strftime("%-l %p") %>–<%= build_date[:ends_at].in_time_zone(USER_TIME_ZONE).strftime("%-l %p") %></small>
                                  <% end %>
                                  <% if can_edit_hours || can_delete_build_days %>
-                                    <div class="btn-group calendar-date-actions">
-                                       <a
-                                          class="btn btn-small dropdown-toggle"
-                                          data-toggle="dropdown"
-                                          href="#"
-                                          aria-label="Actions for <%= build_date[:build_date].strftime("%B %-d, %Y") %>"
-                                       >
-                                          <span class="caret"></span>
-                                       </a>
-                                       <ul class="dropdown-menu">
-                                          <% if can_edit_hours %>
-                                             <li><a href="/build_schedule?date=<%= build_date[:build_date] %>&optional=<%= build_date[:optional] %>">Edit build</a></li>
-                                             <% if build_date[:optional] == 1 %>
-                                                <li><a href="/delete_optional/<%= build_date[:build_date] %>">Mark required</a></li>
-                                             <% else %>
-                                                <li><a href="/schedule_optional?date=<%= build_date[:build_date] %>">Mark optional</a></li>
-                                             <% end %>
+                                    <ul class="dropdown-menu">
+                                       <% if can_edit_hours %>
+                                          <li><a href="/build_schedule?date=<%= build_date[:build_date] %>&optional=<%= build_date[:optional] %>">Edit build</a></li>
+                                          <% if build_date[:optional] == 1 %>
+                                             <li><a href="/delete_optional/<%= build_date[:build_date] %>">Mark required</a></li>
+                                          <% else %>
+                                             <li><a href="/schedule_optional?date=<%= build_date[:build_date] %>">Mark optional</a></li>
                                           <% end %>
-                                          <% if can_delete_build_days %>
-                                             <li><a href="/build_days/<%= build_date[:build_date] %>/delete">Delete</a></li>
-                                          <% end %>
-                                       </ul>
-                                    </div>
+                                       <% end %>
+                                       <% if can_delete_build_days %>
+                                          <li><a href="/build_days/<%= build_date[:build_date] %>/delete">Delete</a></li>
+                                       <% end %>
+                                    </ul>
                                  <% end %>
                               </th>
                         <% end %>
@@ -174,96 +164,71 @@
                      <td <%= cell_selection_attributes %> style="background-color: var(--scheduled-color); min-width:50px; height:30px;" title="Scheduled; attendance pending">
                      <% end %>
                         <% if required == 1 && can_edit_hours %>
-                        <div class="btn-group visible-if-parent-hover">
-                           <a class="btn btn-small dropdown-toggle" data-toggle="dropdown" href="#">
-                              <span class="caret"></span>
-                           </a>
-                           <ul class="dropdown-menu">
-                              <% if excused == 1 %>
-                              <li><a class="calendar-unexcuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/excusals/<%=build_date%>/delete">Unexcuse</a></li>
-                              <% else %>
-                              <li><a class="calendar-excuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
-                              <% end %>
-                           </ul>
-                        </div>
+                        <ul class="dropdown-menu">
+                           <% if excused == 1 %>
+                           <li><a class="calendar-unexcuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/excusals/<%=build_date%>/delete">Unexcuse</a></li>
+                           <% else %>
+                           <li><a class="calendar-excuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
+                           <% end %>
+                        </ul>
                         <% end %>
                      </td>
                   <% elsif (attended == 1) %>
                      <td <%= cell_selection_attributes %> style="background-color: var(--present-color); min-width:50px; height:30px;">
                         <% if @user.has_permission?("HOURS_EDIT") || @user.has_permission?("HOURS_DELETE") %>
-                        <div class="btn-group visible-if-parent-hover">
-                           <a class="btn btn-small dropdown-toggle" data-toggle="dropdown" href="#">
-                              <span class="caret"></span>
-                           </a>
-                           <ul class="dropdown-menu">
-                              <% if @user.has_permission?("HOURS_EDIT") %>
-                              <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
-                              <% end %>
-                              <% if @user.has_permission?("HOURS_DELETE") %>
-                              <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
-                              <% end %>
-                           </ul>
-                        </div>
+                        <ul class="dropdown-menu">
+                           <% if @user.has_permission?("HOURS_EDIT") %>
+                           <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
+                           <% end %>
+                           <% if @user.has_permission?("HOURS_DELETE") %>
+                           <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
+                           <% end %>
+                        </ul>
                         <% end %>
                      </td>
                   <% elsif (excused == 1 && required == 1) %>
                      <td <%= cell_selection_attributes %> style="--color-a: var(--excused-color); --color-b: var(--partial-color); min-width:50px; height:30px;" class="stripe-bg">
                         <% if @user.has_permission?("HOURS_EDIT") %>
-                        <div class="btn-group visible-if-parent-hover">
-                           <a class="btn btn-small dropdown-toggle" data-toggle="dropdown" href="#">
-                              <span class="caret"></span>
-                           </a>
-                           <ul class="dropdown-menu">
-                              <li><a class="calendar-unexcuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/excusals/<%=build_date%>/delete">Unexcuse</a></li>
-                           </ul>
-                        </div>
+                        <ul class="dropdown-menu">
+                           <li><a class="calendar-unexcuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/excusals/<%=build_date%>/delete">Unexcuse</a></li>
+                        </ul>
                         <% end %>
                      </td>
                   <% elsif (!(required == 1)) %>
                      <td <%= cell_selection_attributes %> style="background-color: var(--excused-color); min-width:50px; height:30px;">
                         <% if @user.has_permission?("HOURS_EDIT") || (session_id && @user.has_permission?("HOURS_DELETE")) %>
-                        <div class="btn-group visible-if-parent-hover">
-                           <a class="btn btn-small dropdown-toggle" data-toggle="dropdown" href="#">
-                              <span class="caret"></span>
-                           </a>
-                           <ul class="dropdown-menu">
-                              <% if session_id %>
-                                 <% if @user.has_permission?("HOURS_EDIT") %>
-                              <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
-                                 <% end %>
-                                 <% if @user.has_permission?("HOURS_DELETE") %>
-                              <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
-                                 <% end %>
-                              <% else %>
-                              <li><a href="/students/<%=student_id%>/new_lab_session?date=<%=build_date%>">Add Lab Session</a></li>
+                        <ul class="dropdown-menu">
+                           <% if session_id %>
+                              <% if @user.has_permission?("HOURS_EDIT") %>
+                           <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
                               <% end %>
-                           </ul>
-                        </div>
+                              <% if @user.has_permission?("HOURS_DELETE") %>
+                           <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
+                              <% end %>
+                           <% else %>
+                           <li><a href="/students/<%=student_id%>/new_lab_session?date=<%=build_date%>">Add Lab Session</a></li>
+                           <% end %>
+                        </ul>
                         <% end %>
                      </td>
                   <% else %>
                      <td <%= cell_selection_attributes %> style="background-color: <%= session_id ? "var(--partial-color)" : "var(--missing-color)" %>; min-width:50px; height:30px;">
                         <% if @user.has_permission?("HOURS_EDIT") || (session_id && @user.has_permission?("HOURS_DELETE")) %>
-                        <div class="btn-group visible-if-parent-hover">
-                           <a class="btn btn-small dropdown-toggle" data-toggle="dropdown" href="#">
-                              <span class="caret"></span>
-                           </a>
-                           <ul class="dropdown-menu">
-                              <% if session_id %>
-                                 <% if @user.has_permission?("HOURS_EDIT") %>
-                              <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
-                                 <% end %>
-                              <% else %>
-                              <li><a href="/students/<%=student_id%>/new_lab_session?date=<%=build_date%>">Add Lab Session</a></li>
-                              <% end %>
+                        <ul class="dropdown-menu">
+                           <% if session_id %>
                               <% if @user.has_permission?("HOURS_EDIT") %>
-                              <li><a class="calendar-excuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
+                           <li><a href="/lab_sessions/<%=session_id%>/edit">Edit Lab Session</a></li>
                               <% end %>
-                              <% if session_id && @user.has_permission?("HOURS_DELETE") %>
-                              <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
-                              <% end %>
-                           </ul>
-                        </div>
+                           <% else %>
+                           <li><a href="/students/<%=student_id%>/new_lab_session?date=<%=build_date%>">Add Lab Session</a></li>
+                           <% end %>
+                           <% if @user.has_permission?("HOURS_EDIT") %>
+                           <li><a class="calendar-excuse-link" data-student-id="<%=student_id%>" data-date="<%=build_date%>" href="/students/<%=student_id%>/mark_excused?date=<%=build_date%>">Excuse Student</a></li>
+                           <% end %>
+                           <% if session_id && @user.has_permission?("HOURS_DELETE") %>
+                           <li><a href="/lab_sessions/<%=session_id%>/delete" class="text-error">Delete Lab Session</a></li>
+                           <% end %>
+                        </ul>
                         <% end %>
                      </td>
                   <% end %>
@@ -345,13 +310,6 @@
 
     $(window).on('resize', fitCalendarScrollBoxToWindow);
 
-    function pullLastTwoDateMenusRight() {
-        $('#color-grid').children().children('tr:nth-last-child(2)').children().children().children(".dropdown-menu").addClass("pull-right")
-        $('#color-grid').children().children('tr:nth-last-child(1)').children().children().children(".dropdown-menu").addClass("pull-right")
-    }
-
-    pullLastTwoDateMenusRight();
-
     function applyStudentNameFilter() {
         var query = $.trim($('#student-name-filter').val()).toLowerCase();
         var studentMatchesByIndex = $('.student-table tbody tr').map(function () {
@@ -379,7 +337,6 @@
         }
         $('#color-grid').replaceWith($updatedGrid);
         $('.student-table').replaceWith($updatedStudentTable);
-        pullLastTwoDateMenusRight();
         applyStudentNameFilter();
         clearCalendarSelection();
     }
@@ -585,7 +542,7 @@
     });
 
     $(document).on('click', '#color-grid td[data-student-id]', function (event) {
-        if (!canEditHours || $(event.target).closest('.dropdown-toggle, .dropdown-menu').length > 0) {
+        if (!canEditHours) {
             return;
         }
         var $cell = $(this);
@@ -615,8 +572,12 @@
             }
         }
         event.preventDefault();
-        $('.btn-group.open').removeClass('open');
         showCalendarContextMenu($items, event.clientX, event.clientY);
+    });
+
+    $(document).on('contextmenu', '#calendar-date-header th.calendar-date-with-actions', function (event) {
+        event.preventDefault();
+        showCalendarContextMenu($(this).find('.dropdown-menu').first().children('li').clone(), event.clientX, event.clientY);
     });
 
     $(document).on('contextmenu', function (event) {
